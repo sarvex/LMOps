@@ -38,7 +38,7 @@ class ScoreCollator:
             labels[labels == self.tokenizer.pad_token_id] = -100
         num_valid_tokens = torch.cumsum(batch_dict['attention_mask'], dim=1)
         output_lengths: torch.LongTensor = torch.LongTensor(self._get_output_lengths(output_texts))
-        logger.debug('output lengths: {}'.format(output_lengths))
+        logger.debug(f'output lengths: {output_lengths}')
         input_lengths: torch.LongTensor = torch.sum(batch_dict['attention_mask'], dim=1) - output_lengths
         labels[num_valid_tokens <= input_lengths[:, None]] = -100
         batch_dict['labels'] = labels
@@ -74,11 +74,11 @@ class DecodeCollator:
         self.tokenizer.padding_side = 'left'
         input_texts = [f['input_texts'] for f in features]
 
-        batch_dict = self.tokenizer(
+        return self.tokenizer(
             input_texts,
             max_length=self.max_length,
             truncation=True,
             padding=self.padding,
             pad_to_multiple_of=self.pad_to_multiple_of,
-            return_tensors=self.return_tensors)
-        return batch_dict
+            return_tensors=self.return_tensors,
+        )

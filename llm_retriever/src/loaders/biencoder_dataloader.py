@@ -109,8 +109,8 @@ class BiencoderDataset(torch.utils.data.Dataset):
         input_docs: List[str] = [self.corpus[doc_id]['contents'] for doc_id in input_doc_ids]
 
         if self.args.add_qd_prompt:
-            queries = ['query: ' + q for q in queries]
-            input_docs = ['query: ' + d for d in input_docs]
+            queries = [f'query: {q}' for q in queries]
+            input_docs = [f'query: {d}' for d in input_docs]
 
         step_size = self.args.train_n_passages
         batch_dict = {
@@ -139,7 +139,7 @@ class BiencoderDataset(torch.utils.data.Dataset):
                 cur_kd_labels = [qid_to_doc_id_to_score[qid][doc_id] for doc_id in input_doc_ids[idx:idx + step_size]]
                 batch_dict['kd_labels'].append(cur_kd_labels)
             assert len(batch_dict['kd_labels']) == len(examples['query_id']), \
-                '{} != {}'.format(len(batch_dict['kd_labels']), len(examples['query_id']))
+                    '{} != {}'.format(len(batch_dict['kd_labels']), len(examples['query_id']))
 
         return batch_dict
 
@@ -160,7 +160,7 @@ class RetrievalDataLoader:
 
         if self.args.train_file is not None:
             train_input_files = get_input_files(self.args.train_file)
-            logger.info("Train files: {}".format(train_input_files))
+            logger.info(f"Train files: {train_input_files}")
             train_dataset = BiencoderDataset(args=self.args, tokenizer=self.tokenizer, input_files=train_input_files)
 
         if self.args.do_train:

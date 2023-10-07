@@ -22,8 +22,7 @@ args: Arguments = parser.parse_args_into_dataclasses()[0]
 
 
 def _get_shard_out_path(gpu_idx: int) -> str:
-    return '{}/{}_{}_{}.jsonl.gz'.format(
-        args.data_dir, os.path.basename(args.llm_model_name_or_path), args.search_split, gpu_idx)
+    return f'{args.data_dir}/{os.path.basename(args.llm_model_name_or_path)}_{args.search_split}_{gpu_idx}.jsonl.gz'
 
 
 def _select_indices(dataset: Dataset) -> List[int]:
@@ -33,7 +32,7 @@ def _select_indices(dataset: Dataset) -> List[int]:
     left, right = 0, len(dataset)
     while left < right:
         middle = (left + right) // 2
-        total_examples = sum([min(middle, v) for v in num_examples_per_task.values()])
+        total_examples = sum(min(middle, v) for v in num_examples_per_task.values())
         if total_examples >= args.max_train_samples:
             right = middle
         else:
@@ -47,8 +46,8 @@ def _select_indices(dataset: Dataset) -> List[int]:
             selected_per_task[task_name] += 1
 
     for task_name, num_selected in selected_per_task.items():
-        logger.info('Task name: {}, selected {}/{}'.format(
-            task_name, num_selected, num_examples_per_task[task_name])
+        logger.info(
+            f'Task name: {task_name}, selected {num_selected}/{num_examples_per_task[task_name]}'
         )
 
     return indices
@@ -150,7 +149,7 @@ def _merge_scores(out_path: str):
 
     save_dataset(dataset, out_path)
 
-    corpus_path: str = '{}/passages.jsonl.gz'.format(args.data_dir)
+    corpus_path: str = f'{args.data_dir}/passages.jsonl.gz'
     corpus: Dataset = load_dataset(
         'json', data_files=corpus_path, split='train', download_mode=DownloadMode.FORCE_REDOWNLOAD
     )
@@ -158,15 +157,13 @@ def _merge_scores(out_path: str):
 
 
 def main():
-    logger.info('Args={}'.format(str(args)))
-    out_path: str = '{}/{}_{}.jsonl.gz'.format(
-        args.data_dir, parse_model_id(args.llm_model_name_or_path), args.search_split
-    )
+    logger.info(f'Args={str(args)}')
+    out_path: str = f'{args.data_dir}/{parse_model_id(args.llm_model_name_or_path)}_{args.search_split}.jsonl.gz'
     if os.path.exists(out_path):
-        logger.info('Output file {} exists. Skip.'.format(out_path))
+        logger.info(f'Output file {out_path} exists. Skip.')
         return
 
-    logger.info('Use {} workers'.format(args.world_size))
+    logger.info(f'Use {args.world_size} workers')
     _worker_gen_llm_scores()
 
     wait_until_all_files_show_up([_get_shard_out_path(gpu_idx) for gpu_idx in range(args.world_size)])
@@ -177,7 +174,7 @@ def main():
         _merge_scores(out_path=out_path)
         for gpu_idx in range(args.world_size):
             os.remove(_get_shard_out_path(gpu_idx))
-        os.system('rm -f {}/*.lock'.format(args.data_dir))
+        os.system(f'rm -f {args.data_dir}/*.lock')
 
 
 if __name__ == '__main__':

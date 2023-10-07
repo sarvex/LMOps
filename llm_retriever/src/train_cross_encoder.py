@@ -31,7 +31,7 @@ def main():
     parser = HfArgumentParser((Arguments,))
     args: Arguments = parser.parse_args_into_dataclasses()[0]
     _common_setup(args)
-    logger.info('Args={}'.format(str(args)))
+    logger.info(f'Args={str(args)}')
 
     tokenizer: PreTrainedTokenizerFast = AutoTokenizer.from_pretrained(args.model_name_or_path)
 
@@ -41,7 +41,7 @@ def main():
         num_labels=1)
 
     logger.info(model)
-    logger.info('Vocab size: {}'.format(len(tokenizer)))
+    logger.info(f'Vocab size: {len(tokenizer)}')
 
     data_collator = CrossEncoderCollator(
         tokenizer=tokenizer,

@@ -9,8 +9,7 @@ from tasks.base_task import BaseTask
 class Paws(BaseTask):
     def _load_raw_data(self, split: str) -> Optional[Dataset]:
         split = split if split == 'train' else 'test'
-        dataset = load_dataset('paws', 'labeled_final', split=split)
-        return dataset
+        return load_dataset('paws', 'labeled_final', split=split)
 
     @property
     def templates(self) -> List[Tuple[str, str]]:

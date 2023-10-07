@@ -9,8 +9,7 @@ from tasks.base_task import BaseTask
 class Rte(BaseTask):
     def _load_raw_data(self, split: str) -> Optional[Dataset]:
         split = split if split == 'train' else 'validation'
-        dataset = load_dataset('super_glue', 'rte', split=split)
-        return dataset
+        return load_dataset('super_glue', 'rte', split=split)
 
     @property
     def templates(self) -> List[Tuple[str, str]]:

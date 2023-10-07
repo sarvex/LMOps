@@ -19,8 +19,7 @@ class PPOModel(nn.Module):
         self.base_model = get_model(model_path, model_type, model_parallel, gradient_checkpointing)
 
     def forward(self, **x):
-        base_model_outputs = self.base_model(**x)
-        return base_model_outputs
+        return self.base_model(**x)
     
     def generate(self, **x):
         return self.base_model.generate(**x)

@@ -52,18 +52,18 @@ class PPOSampler():
                 self.epochs += 1
                 print_rank(f"Another outer ppo epoch, outer ppo epoch: {self.epochs}")
                 save_rank(f"Another outer ppo epoch, outer ppo epoch: {self.epochs}", os.path.join(self.args.save, "log.txt"))
-                
+
                 self.pipeline_loader.sampler.set_epoch(self.epochs)
                 self.pipeline_iterator = iter(self.pipeline_loader)
                 batch = next(self.pipeline_iterator)
 
             batch, no_model_batch = batch
             n = batch["input_ids"].size(0)
-            
+
             batch, no_model_batch = self.pipeline.move_to_device(batch, no_model_batch, self.trainer.device)
-            
+
             query_ids = batch["input_ids"]
-            
+
             # generate and compute rollout scores
             with torch.no_grad():
                 mode = "base"
@@ -117,7 +117,7 @@ class PPOSampler():
                     raw_logprobs = rollout_logprobs
                     logprobs = rollout_logprobs
                     w = torch.ones_like(logprobs)
-                        
+
                 # get ent_rewards
                 ent_rewards = -logprobs
 
@@ -126,8 +126,7 @@ class PPOSampler():
             if self.args.reward_scaling is not None:
                 rewards = rewards / self.args.reward_scaling
 
-            clip_reward = self.args.cliprange_reward
-            if clip_reward:
+            if clip_reward := self.args.cliprange_reward:
                 rewards = torch.clip(rewards, -clip_reward, clip_reward)
 
             query_ids = query_ids.cpu()
@@ -140,7 +139,7 @@ class PPOSampler():
             rev_kl = rev_kl.cpu()
             w = w.cpu()
             inf_mask = inf_mask.cpu()
-            
+
             new_ppo_rl_elements = [
                 PPORLElement(
                     query_tensor=query_ids[i],
@@ -163,7 +162,7 @@ class PPOSampler():
         ppo_rl_elements = ppo_rl_elements[:num_rollouts]
         # Push samples and rewards to trainer's rollout storage
         self.trainer.push_to_store(ppo_rl_elements)
-        
+
         if self.args.save_rollout:
             all_query_ids = all_gather(torch.stack([e.query_tensor for e in ppo_rl_elements], dim=0).to(self.trainer.device))
             all_response_ids = all_gather(torch.stack([e.response_tensor for e in ppo_rl_elements], dim=0).to(self.trainer.device))

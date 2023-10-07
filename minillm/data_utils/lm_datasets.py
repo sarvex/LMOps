@@ -28,13 +28,9 @@ class LMTrainDataset(Dataset):
             with open(os.path.join(path, f"{split}.jsonl")) as f:
                 self.raw = [json.loads(line) for line in f.readlines()]
                 self.answers = [x["output"] if isinstance(x["output"], list) else [x["output"]] for x in self.raw]
-        
-        print_rank(len(self.lm_ctx))
-        if num == -1:
-            self.num = len(self.lm_ctx)
-        else:
-            self.num = num
 
+        print_rank(len(self.lm_ctx))
+        self.num = len(self.lm_ctx) if num == -1 else num
         print_rank(f"Num LM instances: {len(self.lm_ctx)}")
 
     def __len__(self):

@@ -20,7 +20,7 @@ class BiencoderCollator:
 
     def __call__(self, features: List[Dict[str, Any]]) -> BatchEncoding:
         queries: List[str] = [f['query'] for f in features]
-        passages: List[str] = sum([f['passages'] for f in features], [])
+        passages: List[str] = sum((f['passages'] for f in features), [])
 
         input_texts = queries + passages
 

@@ -15,8 +15,10 @@ def load_corpus(path: str) -> Dataset:
 
     # two fields: id, contents
     corpus = load_dataset('json', data_files=path)['train']
-    logger.info('Load {} documents from {} with columns {}'.format(len(corpus), path, corpus.column_names))
-    logger.info('A random document: {}'.format(random.choice(corpus)))
+    logger.info(
+        f'Load {len(corpus)} documents from {path} with columns {corpus.column_names}'
+    )
+    logger.info(f'A random document: {random.choice(corpus)}')
     return corpus
 
 
@@ -94,7 +96,7 @@ def save_llm_decoding_results(
         'answer_text': answer_texts
     })
     save_dataset(dataset, out_path, shuffle=True)
-    logger.info('Successfully save decoding results to {}'.format(out_path))
+    logger.info(f'Successfully save decoding results to {out_path}')
 
 
 def log_task_statistics(ds: Dataset, split: str = 'train'):
@@ -103,5 +105,7 @@ def log_task_statistics(ds: Dataset, split: str = 'train'):
         task_name_counter[task_name] += 1
     # log the number of examples per task
     for task_name, count in task_name_counter.most_common():
-        logger.info('{} ({}): {}'.format(task_name, split, count))
-    logger.info('{}: {} tasks, {} examples in total'.format(split, len(task_name_counter), len(ds)))
+        logger.info(f'{task_name} ({split}): {count}')
+    logger.info(
+        f'{split}: {len(task_name_counter)} tasks, {len(ds)} examples in total'
+    )

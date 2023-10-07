@@ -192,15 +192,15 @@ def get_args():
     parser = add_minillm_args(parser)
     parser = add_gen_args(parser)
     parser = deepspeed.add_config_arguments(parser)
-    
+
     args, unknown = parser.parse_known_args()
-    
-    assert all(["--" not in x for x in unknown]), unknown
-    
+
+    assert all("--" not in x for x in unknown), unknown
+
     args.local_rank = int(os.getenv("LOCAL_RANK", "0"))
-        
+
     args.n_gpu = args.n_gpu * args.n_nodes
-        
+
     if args.type == "eval_main":
         if args.ckpt_name is not None:
             tmp = args.ckpt_name.split("/")
@@ -243,12 +243,28 @@ def get_args():
         )
         args.save = save_path
     elif args.type == "minillm":
-        ppo_prefix = f"pe{args.ppo_epochs}" + \
-                     (f"_rs{args.reward_scaling}" if args.ppo_epochs is not None else "") + \
-                     (f"_nr{args.num_rollouts}" if args.num_rollouts is not None else "") + \
-                     (f"_ln" if args.length_norm else "") + \
-                     (f"_sr" if args.single_step_reg else "") + \
-                     (f"_tm{args.teacher_mixed_alpha}" if args.teacher_mixed_alpha is not None else "")
+        ppo_prefix = (
+            (
+                f"pe{args.ppo_epochs}"
+                + (
+                    f"_rs{args.reward_scaling}"
+                    if args.ppo_epochs is not None
+                    else ""
+                )
+                + (
+                    f"_nr{args.num_rollouts}"
+                    if args.num_rollouts is not None
+                    else ""
+                )
+                + ("_ln" if args.length_norm else "")
+            )
+            + ("_sr" if args.single_step_reg else "")
+            + (
+                f"_tm{args.teacher_mixed_alpha}"
+                if args.teacher_mixed_alpha is not None
+                else ""
+            )
+        )
         save_path = os.path.join(
             args.save,
             (f"{args.ckpt_name}-{args.teacher_ckpt_name}"),
@@ -257,7 +273,7 @@ def get_args():
             ppo_prefix + args.save_additional_suffix
         )
         args.save = save_path
-        
+
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
 

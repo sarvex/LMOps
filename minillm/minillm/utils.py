@@ -106,8 +106,7 @@ def get_x_entropy(logits_1, logits_2, inf_mask, mask, model_parallel=False):
 
 def get_rev_kl(log_p, log_q, mask):
     log_ratio = (log_p - log_q) * mask
-    kl = log_ratio.float().exp() - 1 - log_ratio
-    return kl
+    return log_ratio.float().exp() - 1 - log_ratio
 
 
 def get_global_statistics(xs: torch.Tensor) -> Tuple[float, float, int]:

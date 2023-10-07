@@ -13,15 +13,16 @@ def build_llm(args: Arguments) -> BaseLLM:
     if 'gpt2' in model_name_or_path:
         if args.llm_max_input_length >= 1024:
             args.llm_max_input_length -= max(args.llm_max_decode_length, 128)
-            logger.warning('GPT2 models cannot handle sequences longer than 1024. '
-                           'set to {}'.format(args.llm_max_input_length))
+            logger.warning(
+                f'GPT2 models cannot handle sequences longer than 1024. set to {args.llm_max_input_length}'
+            )
         llm = GPT2(args=args, model_name_or_path=model_name_or_path)
     elif 'gpt-neo' in model_name_or_path:
         llm = GPTNeo(args=args, model_name_or_path=model_name_or_path)
     elif 'llama' in model_name_or_path:
         llm = Llama(args=args, model_name_or_path=model_name_or_path)
     else:
-        raise ValueError('Invalid model name or path: {}'.format(model_name_or_path))
+        raise ValueError(f'Invalid model name or path: {model_name_or_path}')
 
     return llm
 

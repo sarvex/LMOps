@@ -45,11 +45,11 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths, xlingual
 
 def compute_metrics(predictions, references, xlingual=False):
     # assert len(predictions) == len(references), f"# of predictions {len(predictions)} doesn't match # of references {len(references)}."
-    
+
     min_length = min(len((predictions)), len(references))
     predictions = predictions[:min_length]
     references = references[:min_length]
-    
+
     em, rougeL = 0, 0
     for pred, gold in zip(predictions, references):
         assert isinstance(gold, list)
@@ -62,8 +62,7 @@ def compute_metrics(predictions, references, xlingual=False):
     em = 100.0 * em / len(references)
     rougeL = 100.0 * rougeL / len(references)
     metrics = {"exact_match": em, "rougeL": rougeL}
-    metrics = {k: round(v, 4) for k, v in metrics.items()}
-    return metrics
+    return {k: round(v, 4) for k, v in metrics.items()}
 
 
 def compute_grouped_metrics(predictions, references, groups, xlingual=False):

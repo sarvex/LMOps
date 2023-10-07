@@ -30,13 +30,18 @@ def main():
     parser.add_argument("--exist_ok", action="store_true")
 
     args = parser.parse_args()
-    
+
     decrease_mp, increase_mp = func_map[args.model_type]
 
     if args.source_mp_size == 1:
         assert args.target_mp_size > args.source_mp_size
         args.save_path = os.path.join(args.input_path, f"mp{args.target_mp_size}")
-        assert args.exist_ok or not any([os.path.exists(os.path.join(args.save_path, f"pytorch_model_{i}.bin")) for i in range(args.target_mp_size)])
+        assert args.exist_ok or not any(
+            os.path.exists(
+                os.path.join(args.save_path, f"pytorch_model_{i}.bin")
+            )
+            for i in range(args.target_mp_size)
+        )
         os.makedirs(args.save_path, exist_ok=True)
         model_hf = AutoModelForCausalLM.from_pretrained(args.input_path, torch_dtype=torch.float16).state_dict()
         d_list = increase_mp(model_hf, args.target_mp_size, half=args.half)
@@ -52,14 +57,19 @@ def main():
         torch.save(d, os.path.join(args.save_path, "pytorch_model.bin"))
     else:
         args.save_path = os.path.join(args.input_path, f"mp{args.target_mp_size}")
-        assert args.exist_ok or not any([os.path.exists(os.path.join(args.save_path, f"pytorch_model_{i}.bin")) for i in range(args.target_mp_size)])
-        
+        assert args.exist_ok or not any(
+            os.path.exists(
+                os.path.join(args.save_path, f"pytorch_model_{i}.bin")
+            )
+            for i in range(args.target_mp_size)
+        )
+
         ckpt_path = os.path.join(args.input_path, f"mp{args.source_mp_size}")
         d_list = [torch.load(os.path.join(ckpt_path, f"pytorch_model_{i}.bin"), map_location="cpu") for i in range(args.source_mp_size)]
         d = decrease_mp(d_list, half=args.half)
-        
+
         torch.save(d, os.path.join(args.input_path, "pytorch_model.bin"))
-        
+
         os.makedirs(args.save_path, exist_ok=True)
         model_hf = AutoModelForCausalLM.from_pretrained(args.input_path, torch_dtype=torch.float16).state_dict()
         d_list = increase_mp(model_hf, args.target_mp_size, half=args.half)

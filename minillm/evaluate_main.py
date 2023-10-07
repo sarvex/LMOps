@@ -20,10 +20,11 @@ torch.set_num_threads(4)
 
 
 def prepare_dataset_main(args, tokenizer):
-    data = {}
-    data["test"] = PromptDataset(args, tokenizer, "valid", args.data_dir, args.dev_num)
-
-    return data
+    return {
+        "test": PromptDataset(
+            args, tokenizer, "valid", args.data_dir, args.dev_num
+        )
+    }
 
 
 def run_model(args, tokenizer, model, dataset: PromptDataset, epoch, device):

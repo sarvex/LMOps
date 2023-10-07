@@ -24,7 +24,7 @@ class DenseEval(BaseEval):
             l2_normalize=args.l2_normalize,
             prompt=input_prefix,
         )
-        cache_dir = '{}/embeddings/'.format(args.output_dir)
+        cache_dir = f'{args.output_dir}/embeddings/'
 
         self.retriever: SimpleRetriever = SimpleRetriever(
             encoder=encoder,

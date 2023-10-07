@@ -27,11 +27,11 @@ class Encoder(object):
 
 def main():
     args = get_args()
-        
+
     args.processed_data_dir = os.path.join(args.processed_data_dir, numerize(args.train_num))
 
     os.makedirs(args.processed_data_dir, exist_ok=True)
-        
+
     file_name = os.path.join(args.data_dir, "data.txt")
     fin = open(file_name, "r", encoding="utf-8")
     # encoder use the tokenizer to encode data
@@ -45,11 +45,11 @@ def main():
 
     # 3. tool `indexed_dataset` compress the tokenized data into binary format `bin_file`
     # it will also generate another small `idx_file` for saving meta information in order to decode `bin_file`.
-    train_bin_file = os.path.join(args.processed_data_dir, f"train_{0}.bin")
-    train_idx_file = os.path.join(args.processed_data_dir, f"train_{0}.idx")
+    train_bin_file = os.path.join(args.processed_data_dir, 'train_0.bin')
+    train_idx_file = os.path.join(args.processed_data_dir, 'train_0.idx')
 
-    valid_bin_file = os.path.join(args.processed_data_dir, f"valid_{0}.bin")
-    valid_idx_file = os.path.join(args.processed_data_dir, f"valid_{0}.idx")
+    valid_bin_file = os.path.join(args.processed_data_dir, 'valid_0.bin')
+    valid_idx_file = os.path.join(args.processed_data_dir, 'valid_0.idx')
 
     train_binary_builder = make_builder(train_bin_file, impl="mmap", dtype=np.uint16)
     valid_binary_builder = make_builder(valid_bin_file, impl="mmap", dtype=np.uint16)
@@ -61,19 +61,19 @@ def main():
         total_bytes_processed += bytes_processed
         if input_ids is None:
             continue
-        
+
         buffer.extend(input_ids)
         while len(buffer) >= args.max_length:
             inst = buffer[:args.max_length]
             buffer = buffer[args.max_length:]
-        
+
             if inst_num < args.dev_num:
                 valid_binary_builder.add_item(torch.IntTensor(inst))
             else:
                 train_binary_builder.add_item(torch.IntTensor(inst))
-            
+
             inst_num += 1
-            
+
         if lid % 10000 == 0:
             current = time.time()
             elapsed = current - proc_start
@@ -81,7 +81,7 @@ def main():
             print(f"Processed {lid} documents. {inst_num} instances.",
                 f"({lid/elapsed} docs/s, {mbs} MB/s).",
                 file=sys.stderr)
-        
+
         if inst_num - args.dev_num >= args.train_num:
             break
 

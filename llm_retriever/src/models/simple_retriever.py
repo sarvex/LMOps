@@ -18,9 +18,7 @@ def _sharded_search_topk(
     search_batch_size = 256
     query_indices = list(range(query_embeds.shape[0]))
 
-    for start in tqdm.tqdm(range(0, query_embeds.shape[0], search_batch_size),
-                           desc="search shard {}".format(shard_idx),
-                           mininterval=5):
+    for start in tqdm.tqdm(range(0, query_embeds.shape[0], search_batch_size), desc=f"search shard {shard_idx}", mininterval=5):
         batch_query_embed = query_embeds[start:(start + search_batch_size)]
         batch_query_indices = query_indices[start:(start + search_batch_size)]
         batch_score = torch.mm(batch_query_embed, shard_embed.t())
@@ -47,7 +45,7 @@ class SimpleRetriever:
         self.corpus: Dataset = corpus
         logger.info(f"Corpus size: {len(self.corpus)}")
 
-        self.cache_dir = cache_dir or 'tmp-{}/'.format(len(corpus))
+        self.cache_dir = cache_dir or f'tmp-{len(corpus)}/'
         os.makedirs(self.cache_dir, exist_ok=True)
         logger.info(f"Cache dir: {self.cache_dir}")
         self.encode_shard_size = 2_000_000
@@ -89,7 +87,7 @@ class SimpleRetriever:
         logger.info('Done encoding corpus')
 
     def _get_out_path(self, shard_idx: int) -> str:
-        return '{}/shard_{}'.format(self.cache_dir, shard_idx)
+        return f'{self.cache_dir}/shard_{shard_idx}'
 
     def _encode_corpus_if_necessary(self, shard_size: int):
         num_shards = (len(self.corpus) + shard_size - 1) // shard_size
@@ -97,7 +95,7 @@ class SimpleRetriever:
         for shard_idx in range(num_shards):
             out_path: str = self._get_out_path(shard_idx)
             if os.path.exists(out_path):
-                logger.info('{} already exists, will skip encoding'.format(out_path))
+                logger.info(f'{out_path} already exists, will skip encoding')
                 num_examples += len(torch.load(out_path, map_location=lambda storage, loc: storage))
                 continue
             shard_dataset: Dataset = self.corpus.shard(
@@ -110,12 +108,14 @@ class SimpleRetriever:
             )
 
             num_examples += shard_embeds.shape[0]
-            logger.info('Saving shard {} ({} examples) to {}'.format(shard_idx, len(shard_dataset), out_path))
+            logger.info(
+                f'Saving shard {shard_idx} ({len(shard_dataset)} examples) to {out_path}'
+            )
             torch.save(shard_embeds, out_path)
 
         assert num_examples == len(self.corpus), \
-            f"Number of examples in the corpus ({len(self.corpus)}) " \
-            f"does not match the number of examples in the shards ({num_examples})"
+                f"Number of examples in the corpus ({len(self.corpus)}) " \
+                f"does not match the number of examples in the shards ({num_examples})"
 
     def _encode_queries(self, queries: List[str]) -> torch.Tensor:
         return self.encoder.encode(

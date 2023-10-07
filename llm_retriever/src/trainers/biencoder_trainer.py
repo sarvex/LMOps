@@ -22,7 +22,7 @@ class BiencoderTrainer(Trainer):
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
-        logger.info("Saving model checkpoint to {}".format(output_dir))
+        logger.info(f"Saving model checkpoint to {output_dir}")
         self.model.save(output_dir)
         if self.tokenizer is not None:
             self.tokenizer.save_pretrained(output_dir)
@@ -40,7 +40,9 @@ class BiencoderTrainer(Trainer):
             self.mrr_meter.update(step_mrr)
 
             if self.state.global_step > 0 and self.state.global_step % self.args.logging_steps == 0:
-                logger.info('step: {}, {}, {}, {}'.format(self.state.global_step, self.mrr_meter, self.acc1_meter, self.acc3_meter))
+                logger.info(
+                    f'step: {self.state.global_step}, {self.mrr_meter}, {self.acc1_meter}, {self.acc3_meter}'
+                )
 
             self._reset_meters_if_needed()
 

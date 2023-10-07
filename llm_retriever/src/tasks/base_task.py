@@ -20,10 +20,11 @@ class BaseTask(object):
         if not dataset:
             return None
 
-        logger.info('Load dataset: {}, split: {}'.format(self.task_name, split))
+        logger.info(f'Load dataset: {self.task_name}, split: {split}')
         dataset = dataset.map(self.map_single, num_proc=4)
         dataset = dataset.add_column(
-            'query_id', ['{}_{}_{}'.format(self.task_name, split, idx) for idx in range(len(dataset))]
+            'query_id',
+            [f'{self.task_name}_{split}_{idx}' for idx in range(len(dataset))],
         )
         dataset = dataset.remove_columns(
             column_names=[col for col in dataset.column_names

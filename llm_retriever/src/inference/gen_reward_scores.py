@@ -25,13 +25,17 @@ from inference.inference_utils import reward_transform_func
 
 parser = HfArgumentParser((Arguments,))
 args: Arguments = parser.parse_args_into_dataclasses()[0]
-kd_gen_score_in_path = os.path.join(args.data_dir, '{}.jsonl.gz'.format(args.kd_gen_score_split))
-kd_gen_score_out_path = os.path.join(args.output_dir, 'kd_{}.jsonl.gz'.format(args.kd_gen_score_split))
+kd_gen_score_in_path = os.path.join(
+    args.data_dir, f'{args.kd_gen_score_split}.jsonl.gz'
+)
+kd_gen_score_out_path = os.path.join(
+    args.output_dir, f'kd_{args.kd_gen_score_split}.jsonl.gz'
+)
 
 
 def _get_shard_path(worker_idx: int) -> str:
     basename = os.path.basename(kd_gen_score_in_path)
-    return '{}/shard_{}_{}'.format(args.output_dir, worker_idx, basename)
+    return f'{args.output_dir}/shard_{worker_idx}_{basename}'
 
 
 @torch.no_grad()
@@ -116,7 +120,7 @@ def _merge_teacher_scores():
     )
 
     save_dataset(dataset, kd_gen_score_out_path)
-    logger.info('Writing teacher score to {}'.format(kd_gen_score_out_path))
+    logger.info(f'Writing teacher score to {kd_gen_score_out_path}')
 
     logger.info('Done merge results')
 
@@ -128,12 +132,12 @@ def _merge_teacher_scores():
 
 
 def main():
-    logger.info('Args={}'.format(str(args)))
+    logger.info(f'Args={str(args)}')
     if os.path.exists(kd_gen_score_out_path):
-        logger.info('Found {}, skip'.format(kd_gen_score_out_path))
+        logger.info(f'Found {kd_gen_score_out_path}, skip')
         return
 
-    logger.info('Use {} workers'.format(args.world_size))
+    logger.info(f'Use {args.world_size} workers')
     _worker_gen_teacher_score()
     logger.info('Done batch generate teacher score')
 

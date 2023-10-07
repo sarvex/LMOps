@@ -68,32 +68,30 @@ class Loss():
         - https://stable-baselines.readthedocs.io/en/master/modules/ppo2.html
         """
         n = mask.sum()
-        
+
         log_ratio = (logprobs - old_logprobs) * mask
-        ratio = torch.exp(log_ratio.float())            
+        ratio = torch.exp(log_ratio.float())
         ratio = ratio * w
 
         if any(torch.isinf(advantages).view(-1)):
             print("[ERROR] advantage inf")
-        
+
         if any(torch.isinf(ratio).view(-1)):
             print("[ERROR] ratio inf")
 
         if any(torch.isnan(advantages).view(-1)):
             print("[ERROR] advantage nan")
-        
+
         if any(torch.isnan(ratio).view(-1)):
             print("[ERROR] ratio nan")
-        
+
         pg_loss1 = -advantages * ratio
         pg_loss2 = -advantages * torch.clamp(
             ratio,
             1.0 - self.args.cliprange,
             1.0 + self.args.cliprange,
         )
-        pg_loss = torch.sum(torch.max(pg_loss1, pg_loss2).float() * mask) / n
-
-        return pg_loss
+        return torch.sum(torch.max(pg_loss1, pg_loss2).float() * mask) / n
 
     def _reg_loss(self, query_ids, response_ids, mask, logits, inf_mask, stats):
         with torch.no_grad():
@@ -114,13 +112,12 @@ class Loss():
         pt_input_batch, _ = pt_batch
         # merge batch
         assert len(ppo_input_batch) == len(pt_input_batch), list(ppo_input_batch.keys())
-        input_batch = {}
-        for k in ppo_input_batch:
-            input_batch[k] = torch.cat([ppo_input_batch[k], pt_input_batch[k]], dim=0)
-        return input_batch
+        return {
+            k: torch.cat([ppo_input_batch[k], pt_input_batch[k]], dim=0)
+            for k in ppo_input_batch
+        }
 
     def ppo_loss(self, batch: PPORLBatch, logits):
-        stats = {}
         query_tensors = batch.query_tensors
         response_tensors = batch.response_tensors
         lens = batch.lens
@@ -131,7 +128,7 @@ class Loss():
         rev_kl = batch.rev_kl
         w = batch.w
         inf_mask = batch.inf_mask
-        
+
         response_length = response_tensors.shape[-1]
 
         start = query_tensors.size(1) - 1 # "-1" for the first generated token AS TARGET
@@ -141,18 +138,18 @@ class Loss():
         logits = logits[:, start:end]
         if inf_mask is not None:
             logits = logits.masked_fill(inf_mask, -float("inf"))
-            
+
         tokens = torch.cat((query_tensors, response_tensors), dim=1)[
             :, -self.trainer.max_length :
         ]
         mask = self.trainer.get_mask(tokens)[:, start:end]
-        
+
         logprobs = get_log_probs(logits, response_tensors, mask, inf_mask, model_parallel=self.args.model_parallel)
 
         advantages = self._get_advantages_and_returns(
             old_rewards, response_length, mask
         )
-        
+
         loss = self._pg_loss(
             logprobs=logprobs,
             old_logprobs=old_logprobs,
@@ -160,39 +157,37 @@ class Loss():
             mask=mask,
             w=w,
         )
-        stats["pg_loss"] = loss.item()
-        
+        stats = {"pg_loss": loss.item()}
         single_step_reg_loss = self._reg_loss(query_tensors, response_tensors, mask, logits, inf_mask, stats)
         stats["reg_loss"] = single_step_reg_loss.item()
-        
+
         if self.args.single_step_reg:
             loss += single_step_reg_loss
-        
+
         stats["rl_loss"] = loss.item()
-        
+
         with torch.no_grad():
             # generation values for reward
             cumsum_rewards = self._get_cumsum_rewards(old_rewards)
             rev_kl = torch.sum(rev_kl, dim=-1)
-            
+
             if self.args.length_norm:
                 cumsum_rewards = cumsum_rewards / lens
                 rev_kl = rev_kl / s_lens
-                        
+
             cumsum_rewards = all_gather(cumsum_rewards, dim=0, world_size=self.trainer.dp_world_size, group=self.trainer.dp_group).mean(dim=0).item()
             rev_kl = all_gather(rev_kl, dim=0, world_size=self.trainer.dp_world_size, group=self.trainer.dp_group).mean(dim=0).item()
             lens = all_gather(lens, dim=0, world_size=self.trainer.dp_world_size, group=self.trainer.dp_group).float().mean(dim=0).item()
             s_lens = all_gather(s_lens, dim=0, world_size=self.trainer.dp_world_size, group=self.trainer.dp_group).float().mean(dim=0).item()
-        
+
         stats["reward"] = cumsum_rewards
         stats["rev_kl"] = rev_kl
         stats["mixed_lens"] = lens
         stats["stu_lens"] = s_lens
-        
+
         return loss, stats
 
     def pt_loss(self, batch, logits):
-        stats = {}
         model_batch, no_model_batch = batch
         loss_mask = (no_model_batch["label"] != -100).int()
         if self.args.model_parallel:
@@ -201,7 +196,7 @@ class Loss():
         else:
             loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
             lm_loss = loss_fn(logits.view(-1, logits.size(-1)), no_model_batch["label"].view(-1))
-        
+
         distil_loss = 0
         if self.trainer.teacher_model is not None and self.args.kd_ratio is not None:
             with torch.no_grad():
@@ -218,10 +213,10 @@ class Loss():
                 prod_probs = torch.masked_fill(teacher_probs * logprobs, inf_mask, 0)
                 x = torch.sum(prod_probs, dim=-1).view(-1)
                 distil_loss = -torch.sum(x * loss_mask.view(-1), dim=0) / torch.sum(loss_mask.view(-1), dim=0)
-            
+
             loss = (1-self.args.kd_ratio) * lm_loss + self.args.kd_ratio * distil_loss
 
-        stats["pt_loss"] = loss.item()
+        stats = {"pt_loss": loss.item()}
         stats["lm_loss"] = lm_loss.item()
         stats["ds_loss"] = distil_loss.item()
 

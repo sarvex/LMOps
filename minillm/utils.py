@@ -37,7 +37,7 @@ def print_args(args):
     print('arguments:', flush=True)
     for arg in vars(args):
         dots = '.' * (29 - len(arg))
-        print('  {} {} {}'.format(arg, dots, getattr(args, arg)), flush=True)
+        print(f'  {arg} {dots} {getattr(args, arg)}', flush=True)
 
 
 def save_rank(log_str, save_path, rank=0):
@@ -132,7 +132,7 @@ def get_model(args, device):
     config = AutoConfig.from_pretrained(args.model_path)
     if args.dropout_path_rate is not None:
         config.drop_path_rate = args.dropout_path_rate
-    
+
     st_time = time.time()
     if args.model_parallel:
         config.is_model_parallel = True
@@ -141,25 +141,28 @@ def get_model(args, device):
         load_parallel(model, args.model_path)
 
         if mpu.get_data_parallel_rank() == 0:
-            print(' > number of parameters on model parallel rank {}: {}'.format(
-                mpu.get_model_parallel_rank(),
-                sum([p.nelement() for p in model.parameters()])), flush=True)
+            print(
+                f' > number of parameters on model parallel rank {mpu.get_model_parallel_rank()}: {sum(p.nelement() for p in model.parameters())}',
+                flush=True,
+            )
     else:
         config.is_model_parallel = False
         model = AutoModelForCausalLM.from_pretrained(args.model_path, config=config, device_map={"": device}, torch_dtype=torch.float16)
 
         if dist.get_rank() == 0:
-            print(' > number of parameters: {}'.format(
-                sum([p.nelement() for p in model.parameters()])), flush=True)
-        # model = DDP(model)
-        # NOTE: no need for DDP since deepspeed has done
+            print(
+                f' > number of parameters: {sum(p.nelement() for p in model.parameters())}',
+                flush=True,
+            )
+            # model = DDP(model)
+            # NOTE: no need for DDP since deepspeed has done
     if args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
-    
+
     ed_time = time.time()
-    
+
     print_rank(f"Model load time: {ed_time - st_time}s")
-    
+
     return model
 
 
@@ -167,14 +170,23 @@ def get_optimizer_params(args, model: nn.Module):
     # taken from https://github.com/facebookresearch/SpanBERT/blob/0670d8b6a38f6714b85ea7a033f16bd8cc162676/code/run_tacred.py
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'ln_f.weight', 'ln_1.weight', 'ln_2.weight', 'ln_cross_attn']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer
-                    if not any(nd in n for nd in no_decay)]},
-        {'params': [p for n, p in param_optimizer
-                    if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    return [
+        {
+            'params': [
+                p
+                for n, p in param_optimizer
+                if all(nd not in n for nd in no_decay)
+            ]
+        },
+        {
+            'params': [
+                p
+                for n, p in param_optimizer
+                if any(nd in n for nd in no_decay)
+            ],
+            'weight_decay': 0.0,
+        },
     ]
-
-    return optimizer_grouped_parameters
 
 
 def get_tokenizer(args):

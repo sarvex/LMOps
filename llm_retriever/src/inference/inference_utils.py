@@ -11,9 +11,7 @@ from config import Arguments
 def get_prompt_save_path(args: Arguments) -> str:
     from model_utils import parse_model_id
     model_id: str = parse_model_id(args.model_name_or_path)
-    out_path: str = '{}/{}_{}_k{}.jsonl.gz'.format(
-        args.output_dir, model_id, args.llm_eval_split, args.llm_k_shot
-    )
+    out_path: str = f'{args.output_dir}/{model_id}_{args.llm_eval_split}_k{args.llm_k_shot}.jsonl.gz'
 
     return out_path
 
@@ -39,11 +37,11 @@ def reward_transform_func(
             current_query += '\n' + random.choice(answers)
         input_queries.append(current_query)
 
-    batch_dict = tokenizer(input_queries,
-                           text_pair=input_docs,
-                           max_length=reward_max_length,
-                           padding=PaddingStrategy.DO_NOT_PAD,
-                           return_token_type_ids=False,
-                           truncation=True)
-
-    return batch_dict
+    return tokenizer(
+        input_queries,
+        text_pair=input_docs,
+        max_length=reward_max_length,
+        padding=PaddingStrategy.DO_NOT_PAD,
+        return_token_type_ids=False,
+        truncation=True,
+    )

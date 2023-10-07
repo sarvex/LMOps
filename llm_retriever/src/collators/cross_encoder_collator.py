@@ -12,9 +12,9 @@ class CrossEncoderCollator(DataCollatorWithPadding):
         unpack_features = []
         for ex in features:
             keys = list(ex.keys())
-            for idx in range(len(ex[keys[0]])):
-                unpack_features.append({k: ex[k][idx] for k in keys})
-
+            unpack_features.extend(
+                {k: ex[k][idx] for k in keys} for idx in range(len(ex[keys[0]]))
+            )
         collated_batch_dict = self.tokenizer.pad(
             unpack_features,
             padding=self.padding,

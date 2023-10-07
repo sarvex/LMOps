@@ -31,17 +31,19 @@ class RandomEval(BaseEval):
             self.cached_task_name_to_doc_ids[task_name] = self.get_doc_ids_by_task_name(task_name)
         doc_ids: List[str] = self.cached_task_name_to_doc_ids[task_name]
         # mnli_m & mnli_mm should retrieve from mnli training set
-        if len(doc_ids) == 0 and task_name.startswith('mnli_'):
+        if not doc_ids and task_name.startswith('mnli_'):
             if 'mnli' not in self.cached_task_name_to_doc_ids:
                 self.cached_task_name_to_doc_ids['mnli'] = self.get_doc_ids_by_task_name('mnli')
             doc_ids = self.cached_task_name_to_doc_ids['mnli']
 
         if len(doc_ids) == 0:
-            logger.warning('Use the whole training set for task: {}'.format(task_name))
+            logger.warning(f'Use the whole training set for task: {task_name}')
             doc_ids = self.all_doc_ids
 
         if k >= len(doc_ids):
-            logger.warning('k ({}) is larger than the number of examples ({})'.format(k, len(doc_ids)))
+            logger.warning(
+                f'k ({k}) is larger than the number of examples ({len(doc_ids)})'
+            )
         k = min(k, len(doc_ids))
 
         return random.sample(doc_ids, k)
