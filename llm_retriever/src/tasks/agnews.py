@@ -10,8 +10,7 @@ class Ag_news(BaseTask):
 
     def _load_raw_data(self, split: str) -> Optional[Dataset]:
         split = split if split == 'train' else 'test'
-        dataset = load_dataset('ag_news', split=split)
-        return dataset
+        return load_dataset('ag_news', split=split)
 
     @property
     def templates(self) -> List[Tuple[str, str]]:

@@ -21,11 +21,13 @@ def main():
     )
     if not args.llm_eval_tasks or args.llm_eval_tasks[0] == 'all':
         args.llm_eval_tasks = sorted(eval_dataset.unique('task_name'))
-        logger.info('Eval all {} tasks'.format(len(args.llm_eval_tasks)))
+        logger.info(f'Eval all {len(args.llm_eval_tasks)} tasks')
 
     if args.process_index <= 0:
         log_task_statistics(eval_dataset, split=args.llm_eval_split)
-        logger.info('{} tasks to evaluate: {}'.format(len(args.llm_eval_tasks), args.llm_eval_tasks))
+        logger.info(
+            f'{len(args.llm_eval_tasks)} tasks to evaluate: {args.llm_eval_tasks}'
+        )
 
     llm: BaseLLM = build_llm(args=args)
     llm.cuda(args.process_index)
@@ -33,7 +35,7 @@ def main():
     evaluator: LLMEvaluator = LLMEvaluator(args=args, llm=llm)
 
     for task_name in args.llm_eval_tasks:
-        logger.info('Evaluating task: {}'.format(task_name))
+        logger.info(f'Evaluating task: {task_name}')
         evaluator.eval_single_task(eval_dataset, task_name)
         if args.dry_run:
             break

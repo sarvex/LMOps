@@ -15,7 +15,7 @@ class Sentiment140(BaseTask):
             ex['label'] = 0 if int(ex['sentiment']) == 0 else 1
             return ex
 
-        dataset = dataset.filter(lambda ex: int(ex['sentiment']) in [0, 4])
+        dataset = dataset.filter(lambda ex: int(ex['sentiment']) in {0, 4})
         dataset = dataset.map(_map_func)
 
         return dataset

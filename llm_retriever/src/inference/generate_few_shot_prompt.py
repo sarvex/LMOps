@@ -20,22 +20,26 @@ args: Arguments = parser.parse_args_into_dataclasses()[0]
 def main():
     out_path: str = get_prompt_save_path(args=args)
     if os.path.exists(out_path):
-        logger.info('Prompt file {} exists. Skip.'.format(out_path))
+        logger.info(f'Prompt file {out_path} exists. Skip.')
         return
 
     corpus: Dataset = load_dataset(
-        'json', data_files='{}/passages.jsonl.gz'.format(args.data_dir), split='train',
-        download_mode=DownloadMode.FORCE_REDOWNLOAD
+        'json',
+        data_files=f'{args.data_dir}/passages.jsonl.gz',
+        split='train',
+        download_mode=DownloadMode.FORCE_REDOWNLOAD,
     )
     # columns: query_id / query / answers / task_name
     eval_dataset: Dataset = load_dataset(
-        'json', data_files='{}/{}.jsonl.gz'.format(args.data_dir, args.llm_eval_split), split='train',
-        download_mode=DownloadMode.FORCE_REDOWNLOAD
+        'json',
+        data_files=f'{args.data_dir}/{args.llm_eval_split}.jsonl.gz',
+        split='train',
+        download_mode=DownloadMode.FORCE_REDOWNLOAD,
     )
 
     if not args.llm_eval_tasks or args.llm_eval_tasks[0] == 'all':
         args.llm_eval_tasks = sorted(eval_dataset.unique('task_name'))
-        logger.info('Eval all {} tasks'.format(len(args.llm_eval_tasks)))
+        logger.info(f'Eval all {len(args.llm_eval_tasks)} tasks')
 
     model: BaseEval = build_eval_model(args=args, corpus=corpus)
 
@@ -44,11 +48,11 @@ def main():
         task_ds: Dataset = eval_dataset.filter(lambda x: x['task_name'] == task_name)
 
         if len(task_ds) > args.max_test_samples:
-            logger.info('Task: {}, random sample {}/{} for evaluation'.format(
-                task_name, args.max_test_samples, len(task_ds))
+            logger.info(
+                f'Task: {task_name}, random sample {args.max_test_samples}/{len(task_ds)} for evaluation'
             )
             task_ds = task_ds.shuffle(seed=args.seed).select(range(args.max_test_samples))
-        logger.info('Task: {}, {} samples for evaluation'.format(task_name, len(task_ds)))
+        logger.info(f'Task: {task_name}, {len(task_ds)} samples for evaluation')
 
         if args.llm_k_shot <= 0:
             task_ds = task_ds.add_column('input_prompt', ['' for _ in range(len(task_ds))])
@@ -76,7 +80,7 @@ def main():
 
     few_shot_ds: Dataset = concatenate_datasets(task_ds_list)
     save_dataset(few_shot_ds, out_path)
-    logger.info('Save {} examples to {}'.format(len(few_shot_ds), out_path))
+    logger.info(f'Save {len(few_shot_ds)} examples to {out_path}')
 
 
 if __name__ == '__main__':

@@ -123,7 +123,7 @@ class CrossEncoderDataLoader:
 
         if self.args.train_file is not None:
             train_input_files = get_input_files(self.args.train_file)
-            logger.info("Train files: {}".format(train_input_files))
+            logger.info(f"Train files: {train_input_files}")
             train_dataset = CrossEncoderDataset(
                 args=self.args,
                 tokenizer=self.tokenizer,

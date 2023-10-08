@@ -75,7 +75,7 @@ def generate(args, tokenizer, model, dataset, device):
     max_new_tokens = args.max_length - args.max_prompt_length
 
     with torch.no_grad():
-        for it, (model_batch, no_model_batch) in enumerate(tqdm(dataloader, desc="Generating", disable=(dist.get_rank() != 0))):
+        for model_batch, no_model_batch in tqdm(dataloader, desc="Generating", disable=(dist.get_rank() != 0)):
             dataset.move_to_device(model_batch, no_model_batch, device)
             t_gen_out = model.generate(
                 **model_batch,
@@ -88,7 +88,7 @@ def generate(args, tokenizer, model, dataset, device):
                 do_sample=True,
                 return_dict_in_generate=True,
                 output_scores=False)
-    
+
             full_ids = t_gen_out.sequences
             gen_ids = full_ids[:, model_batch["input_ids"].size(1):]
             buffer = torch.ones(gen_ids.size(0), max_new_tokens, dtype=torch.long, device=gen_ids.device) * tokenizer.pad_token_id
@@ -98,20 +98,20 @@ def generate(args, tokenizer, model, dataset, device):
 
     all_idxs = all_gather(torch.cat(all_idxs, dim=0), dim=0, world_size=dp_world_size, group=dp_group).cpu().tolist()
     all_gen_ids = all_gather(torch.cat(all_gen_ids, dim=0), dim=0, world_size=dp_world_size, group=dp_group).cpu().tolist()
-    
+
     if get_rank() == 0:
         all_gen_strs = tokenizer.batch_decode(all_gen_ids, skip_special_tokens=True)
         mean_lens = np.mean([len(tokenizer.encode(x)) for x in all_gen_strs[:100]])
-        
+
         log_str = f"gen | avg. lens: {mean_lens}"
         print_rank(log_str)
         save_rank(log_str, os.path.join(args.save, "log.txt"))
-        
+
         assert len(all_idxs) == len(all_gen_strs)
 
         for idx, g in zip(all_idxs, all_gen_strs):
             dataset.origin_data[idx]["gen_answer"] = g
-        
+
         with open(os.path.join(args.save, "raw.jsonl"), "w") as f:
             for d in dataset.origin_data:
                 if "gen_answer" in d:

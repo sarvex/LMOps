@@ -113,7 +113,7 @@ class BiencoderModel(nn.Module):
             for name, param in model.named_parameters():
                 if 'position_embeddings' in name:
                     param.requires_grad = False
-                    logger.info('Freeze {}'.format(name))
+                    logger.info(f'Freeze {name}')
 
     def gradient_checkpointing_enable(self):
         self.lm_q.gradient_checkpointing_enable()
@@ -125,8 +125,7 @@ class BiencoderModel(nn.Module):
         lm_q = AutoModel.from_pretrained(args.model_name_or_path)
         lm_p = lm_q
 
-        model = cls(args=args, lm_q=lm_q, lm_p=lm_p)
-        return model
+        return cls(args=args, lm_p=lm_p, lm_p=lm_p)
 
     def save(self, output_dir: str):
         self.lm_q.save_pretrained(output_dir)

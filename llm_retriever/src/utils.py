@@ -41,8 +41,7 @@ def save_dataset(dataset: Dataset, out_path: str, shuffle: bool = False):
 
     column_names = dataset.column_names
     examples_per_shard = 10_000_000
-    for start_idx in tqdm.tqdm(range(0, len(dataset), examples_per_shard),
-                               desc='Saving dataset to {}'.format(out_path)):
+    for start_idx in tqdm.tqdm(range(0, len(dataset), examples_per_shard), desc=f'Saving dataset to {out_path}'):
         end_idx = min(start_idx + examples_per_shard, len(dataset))
         sub_dataset = dataset.select(range(start_idx, end_idx))
         column_name_to_data: dict = {column_name: sub_dataset[column_name] for column_name in column_names}
@@ -65,7 +64,7 @@ def move_to_device(sample, device: Union[int, torch.device]):
         elif isinstance(maybe_tensor, list):
             return [_move_to_device(x) for x in maybe_tensor]
         elif isinstance(maybe_tensor, tuple):
-            return tuple([_move_to_device(x) for x in maybe_tensor])
+            return tuple(_move_to_device(x) for x in maybe_tensor)
         elif isinstance(maybe_tensor, Mapping):
             return type(maybe_tensor)({k: _move_to_device(v) for k, v in maybe_tensor.items()})
         else:
@@ -121,7 +120,9 @@ def select_grouped_indices(scores: torch.Tensor,
 def full_contrastive_scores_and_labels(query: torch.Tensor,
                                        key: torch.Tensor,
                                        use_all_pairs: bool = True) -> Tuple[torch.Tensor, torch.Tensor]:
-    assert key.shape[0] % query.shape[0] == 0, '{} % {} > 0'.format(key.shape[0], query.shape[0])
+    assert (
+        key.shape[0] % query.shape[0] == 0
+    ), f'{key.shape[0]} % {query.shape[0]} > 0'
 
     train_n_passages = key.shape[0] // query.shape[0]
     labels = torch.arange(0, query.shape[0], dtype=torch.long, device=query.device)
@@ -170,7 +171,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
     def __str__(self):
-        return '{}: {}'.format(self.name, round(self.avg, self.round_digits))
+        return f'{self.name}: {round(self.avg, self.round_digits)}'
 
 
 def pool(last_hidden_states: Tensor,
@@ -195,7 +196,7 @@ def get_input_files(input_files_pattern: str) -> List[str]:
         input_files += sorted(glob.glob(pattern))
 
     input_files = sorted(list(set(input_files)))
-    logger.info('{} input files: {}'.format(len(input_files), input_files))
+    logger.info(f'{len(input_files)} input files: {input_files}')
     return input_files
 
 
@@ -224,9 +225,8 @@ class DictTrie:
             prefix_sequence: List[int],
             trie_dict: Dict,
     ):
-        if len(prefix_sequence) == 0:
-            output = list(trie_dict.keys())
-            return output
+        if not prefix_sequence:
+            return list(trie_dict.keys())
         elif prefix_sequence[0] in trie_dict:
             return DictTrie._get_from_trie(
                 prefix_sequence[1:],
@@ -245,7 +245,7 @@ class DictTrie:
 def build_trie(tokenizer: PreTrainedTokenizerFast, output_texts: List[str]) -> DictTrie:
     # llama tokenizer will produce 3 IDs...
     newline_id = tokenizer.encode('\n')[-1]
-    output_texts = ['\n{}'.format(t) for t in output_texts]
+    output_texts = [f'\n{t}' for t in output_texts]
 
     # we assume the outputs won't be too long
     output_ids: List[List[int]] = tokenizer(
@@ -265,11 +265,7 @@ def wait_until_all_files_show_up(file_names: List[str]):
     # TODO: this is a hacky way, since a file may be created but not fully written
     while True:
         time.sleep(5)
-        all_files_exist = True
-        for file_name in file_names:
-            if not os.path.exists(file_name):
-                all_files_exist = False
-                break
+        all_files_exist = all(os.path.exists(file_name) for file_name in file_names)
         if all_files_exist:
             time.sleep(30)
             return

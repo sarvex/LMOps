@@ -4,7 +4,12 @@ from typing import List, Union, Optional
 def to_letter(key: Union[str, int]) -> str:
     key = str(key).upper().strip()
     num_to_letter = {"0": "A", "1": "B", "2": "C", "3": "D"}
-    assert key in num_to_letter or key in ['A', 'B', 'C', 'D'], f'Unknown answer key: {key}'
+    assert key in num_to_letter or key in {
+        'A',
+        'B',
+        'C',
+        'D',
+    }, f'Unknown answer key: {key}'
     return num_to_letter.get(key, key)
 
 

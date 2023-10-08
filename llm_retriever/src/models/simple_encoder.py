@@ -17,15 +17,13 @@ def _transform_func(tokenizer: PreTrainedTokenizerFast,
                     prompt: str = None) -> BatchEncoding:
     if prompt:
         examples['input_texts'] = [prompt + t for t in examples['input_texts']]
-    batch_dict = tokenizer(
+    return tokenizer(
         examples['input_texts'],
         max_length=256,
         return_token_type_ids=False,
         padding=True,
         truncation=True,
     )
-
-    return batch_dict
 
 
 class SimpleEncoder(torch.nn.Module):
@@ -42,7 +40,7 @@ class SimpleEncoder(torch.nn.Module):
         self.l2_normalize = l2_normalize
         self.pool_type = pool_type
         self.prompt = prompt
-        assert self.prompt in ['', 'query: ', 'passage: ']
+        assert self.prompt in {'', 'query: ', 'passage: '}
 
         self.encoder.eval()
         self.encoder.cuda()

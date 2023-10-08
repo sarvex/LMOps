@@ -31,12 +31,12 @@ def main():
     parser = HfArgumentParser((Arguments,))
     args: Arguments = parser.parse_args_into_dataclasses()[0]
     _common_setup(args)
-    logger.info('Args={}'.format(str(args)))
+    logger.info(f'Args={str(args)}')
 
     tokenizer: PreTrainedTokenizerFast = AutoTokenizer.from_pretrained(args.model_name_or_path)
     model: BiencoderModel = BiencoderModel.build(args=args)
     logger.info(model)
-    logger.info('Vocab size: {}'.format(len(tokenizer)))
+    logger.info(f'Vocab size: {len(tokenizer)}')
 
     data_collator = BiencoderCollator(
         args=args,

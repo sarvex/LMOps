@@ -93,8 +93,7 @@ def simple_accuracy(preds, labels):
         labels = [label.lower().strip() for label in labels]
         preds = [pred.lower().strip() for pred in preds]
     res = [int(preds[i] == labels[i]) for i in range(len(preds))]
-    acc = sum(res) / len(res)
-    return acc
+    return sum(res) / len(res)
 
 
 def acc_and_f1(preds, labels):

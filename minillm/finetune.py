@@ -145,7 +145,7 @@ def get_distil_loss(args, tokenizer, model, teacher_model, model_batch, no_model
         distil_losses = mpu.parallel_soft_cross_entropy_loss(logits.float(), teacher_logits.float())
         distil_losses = distil_losses.view(-1)
         loss_mask = no_model_batch["loss_mask"].view(-1)
-        distil_loss = (distil_losses * loss_mask).sum(-1) / loss_mask.sum(-1)
+        return (distil_losses * loss_mask).sum(-1) / loss_mask.sum(-1)
     else:
         teacher_probs = F.softmax(teacher_logits, dim=-1, dtype=torch.float32)
         inf_mask = torch.isinf(logits)
@@ -153,9 +153,7 @@ def get_distil_loss(args, tokenizer, model, teacher_model, model_batch, no_model
         prod_probs = torch.masked_fill(teacher_probs * logprobs, inf_mask, 0)
         x = torch.sum(prod_probs, dim=-1).view(-1)
         mask = (no_model_batch["label"] != -100).int()
-        distil_loss = -torch.sum(x * mask.view(-1), dim=0) / torch.sum(mask.view(-1), dim=0)
-    
-    return distil_loss
+        return -torch.sum(x * mask.view(-1), dim=0) / torch.sum(mask.view(-1), dim=0)
 
 
 def get_teacher_lm_loss(args, tokenizer, model, teacher_model, model_batch):
@@ -171,33 +169,31 @@ def get_teacher_lm_loss(args, tokenizer, model, teacher_model, model_batch):
             do_sample=True,
             return_dict_in_generate=True,
             output_scores=False)
-    
+
     full_ids = t_gen_out.sequences
-    
+
     input_ids = full_ids[:, :-1]
     mask = (input_ids != tokenizer.pad_token_id).long()
-    labels = full_ids[:, 1:]    
+    labels = full_ids[:, 1:]
     labels = torch.masked_fill(labels, mask==0, -100)
     labels[:, :model_batch["input_ids"].size(1)-1] = -100
     loss_mask = (labels != -100).float()
-    
+
     new_batch = {
         "input_ids": input_ids,
         "attention_mask": mask,
     }
-    
+
     if args.model_type in ["gpt2"]:
         position_ids = torch.cumsum(mask, dim=-1) - 1
         position_ids = torch.masked_fill(position_ids, mask==0, 0)    
         new_batch["position_ids"] = position_ids    
-    
+
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
 
     outputs = model(**new_batch, return_dict=True, use_cache=False)
     logits = outputs.logits
-    lm_loss = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
-
-    return lm_loss
+    return loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
 
 
 def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, optimizer: AdamW, lr_scheduler, dataset, device, teacher_model=None):

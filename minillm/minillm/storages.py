@@ -76,10 +76,10 @@ class PPORolloutStorage(BaseRolloutStore):
 
     def save(self, path):
         def exp_to_dict(exp):
-            return {k: v for k, v in exp.__dict__.items()}
+            return dict(exp.__dict__.items())
 
         data = [exp_to_dict(exp) for exp in self.history]
-        
+
         torch.save(data, os.path.join(path, f"{get_rank()}.pkl"))
             
     def load(self, path):
@@ -108,7 +108,7 @@ class PPORolloutStorage(BaseRolloutStore):
         return len(self.history)
 
     def collate(self, elems: Iterable[PPORLElement]):
-        if any([e is None for e in elems]):
+        if any(e is None for e in elems):
             print(elems)
         return PPORLBatch(
             # Left padding of already left-padded queries

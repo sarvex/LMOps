@@ -16,8 +16,7 @@ def get_args():
     parser.add_argument("--append_docs", action="store_true")
     parser.add_argument("--input_data_fn", type=str, default="dev.top10.gpt.jsonl")
     parser.add_argument("--forced_decoding", action="store_true")
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 def get_tokenizer_and_model(llama_path):
     tokenizer = LlamaTokenizer.from_pretrained(llama_path)
@@ -48,11 +47,7 @@ def load_data(input_fn, tokenizer):
 
 
 def get_ngrams(tokens, n):
-    ngram_list = []
-    for i in range(len(tokens)-n+1):
-        ngram = ' '.join(tokens[i:i+n])
-        ngram_list.append(ngram)
-    return ngram_list
+    return [' '.join(tokens[i:i+n]) for i in range(len(tokens)-n+1)]
 
 def match_length(seq_a, seq_b):
     l = 0
@@ -63,8 +58,7 @@ def match_length(seq_a, seq_b):
     return l
 
 def prepare_ngrams(s, n, tokenizer, max_n=0):
-    if max_n < n:
-        max_n = n
+    max_n = max(max_n, n)
     docs = s['docs']
     if 'result' in s.keys():
         gtext = s['result']['text']
@@ -140,10 +134,10 @@ def match_prefix(g_ngrams_list, doc_ngrams_list, step):
     return 0, None, None
 
 def make_kv_tupe(input_kv, step_length, accepted_step_length):
-    kv_list = []
-    for kv in input_kv:
-        l = kv.shape[2]
-        kv_list.append(kv[:,:,:l-step_length+accepted_step_length,:])
+    kv_list = [
+        kv[:, :, : kv.shape[2] - step_length + accepted_step_length, :]
+        for kv in input_kv
+    ]
     return tuple(kv_list)
 
 def make_past_key_values(past_key_values, step_length, accepted_step_length):
@@ -168,10 +162,7 @@ def llma_generate(model, tokenizer, input_ids, gen_texts_ids, trigger_N, block_K
         gen_texts_ids = torch.cat([gen_texts_ids, eos], dim=-1)
     else:
         gtokens = []
-        g_ngrams_list = []
-        for nlist in doc_ngrams_list:
-            g_ngrams_list.append((nlist[0], []))
-
+        g_ngrams_list = [(nlist[0], []) for nlist in doc_ngrams_list]
     step = 0
     while True:
         prefix_n, g_ngrams, doc_ngrams = match_prefix(g_ngrams_list, doc_ngrams_list, step)
@@ -245,7 +236,7 @@ def run_time_test(s_list, decoding_fn, model, tokenizer, trigger_N, block_K, app
             prompt = query
         inputs = tokenizer(prompt, return_tensors="pt")
         s["inputs"] = inputs
-    
+
     acc_time = 0
     total_length = 0
     total_start_time = time.time()
@@ -254,7 +245,7 @@ def run_time_test(s_list, decoding_fn, model, tokenizer, trigger_N, block_K, app
         inputs = s["inputs"]
         ngrams_cache = s["ngrams_cache"]
         gen_texts_ids = s["gen_texts_ids"]
-    
+
         generate_ids = decoding_fn(model, tokenizer, inputs.input_ids, gen_texts_ids, trigger_N=trigger_N, block_K=block_K, forced_decoding=forced_decoding, ngrams_cache=ngrams_cache)
         total_length = generate_ids.shape[-1] + total_length
         end_time = time.time()
@@ -264,8 +255,7 @@ def run_time_test(s_list, decoding_fn, model, tokenizer, trigger_N, block_K, app
         s["output"] = generated
         print(generated)
     total_end_time = time.time()
-    total_time = total_end_time-total_start_time
-    return total_time
+    return total_end_time-total_start_time
 
 def main():
     args = get_args()
@@ -277,14 +267,14 @@ def main():
     if args.type == "base":
         print("baseline decoding")
         total_time = run_time_test(s_list, base_generate, model, tokenizer, 1, 1, append_docs=args.append_docs, forced_decoding=args.forced_decoding)
-        print(total_time)
     else:
         print("llma decoding")
         trigger_N = args.n
         block_K = args.k
         print(f"n={trigger_N}, k={block_K}")
         total_time = run_time_test(s_list, llma_generate, model, tokenizer, trigger_N, block_K, append_docs=args.append_docs, forced_decoding=args.forced_decoding)
-        print(total_time)
+
+    print(total_time)
     
 if __name__ == "__main__":
     main()

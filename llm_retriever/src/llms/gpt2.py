@@ -39,8 +39,12 @@ class GPT2(BaseLLM):
             self, input_texts: List[str], output_texts: List[str],
             delimiter: str = '\n', **kwargs
     ) -> List[float]:
-        assert len(input_texts) == len(output_texts), '{} != {}'.format(len(input_texts), len(output_texts))
-        assert not all(output in ['A', 'B', 'C', 'D'] for output in output_texts), 'output_texts should not be letters'
+        assert len(input_texts) == len(
+            output_texts
+        ), f'{len(input_texts)} != {len(output_texts)}'
+        assert any(
+            output not in ['A', 'B', 'C', 'D'] for output in output_texts
+        ), 'output_texts should not be letters'
 
         collator = ScoreCollator(
             tokenizer=self.tokenizer,
@@ -86,9 +90,8 @@ class GPT2(BaseLLM):
                 num_valid_labels = torch.sum(labels != -100, dim=1).float()
                 avg_log_probs += (-per_sequence_loss / num_valid_labels).cpu().tolist()
 
-                logger.debug('num_valid_labels: {}, loss: {}, per_token_loss: {}, avg_per_token_loss: {}'.format(
-                    num_valid_labels, outputs.loss, per_token_loss,
-                    per_token_loss.sum() / torch.sum(labels != -100).float())
+                logger.debug(
+                    f'num_valid_labels: {num_valid_labels}, loss: {outputs.loss}, per_token_loss: {per_token_loss}, avg_per_token_loss: {per_token_loss.sum() / torch.sum(labels != -100).float()}'
                 )
 
         return avg_log_probs

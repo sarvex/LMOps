@@ -16,10 +16,7 @@ def filter_invalid_examples(args: Arguments, dataset: Dataset) -> Dataset:
             return False
 
         sorted_doc_scores = sorted(example['doc_scores'], reverse=True)
-        if sorted_doc_scores[args.topk_as_positive - 1] <= -100.:
-            return False
-
-        return True
+        return sorted_doc_scores[args.topk_as_positive - 1] > -100.
 
     return dataset.filter(
         _filter_func,
@@ -32,7 +29,7 @@ def group_doc_ids(examples: Dict[str, List],
                   offset: int) -> List[int]:
     pos_doc_ids: List[int] = []
     positives: List[Dict[str, List]] = examples['positives']
-    for idx, ex_pos in enumerate(positives):
+    for ex_pos in positives:
         all_pos_doc_ids = ex_pos['doc_id']
         cur_pos_doc_id = _slice_with_mod(all_pos_doc_ids, offset=offset, cnt=1)[0]
         pos_doc_ids.append(int(cur_pos_doc_id))
@@ -46,7 +43,9 @@ def group_doc_ids(examples: Dict[str, List],
         cur_neg_doc_ids = [int(doc_id) for doc_id in cur_neg_doc_ids]
         neg_doc_ids.append(cur_neg_doc_ids)
 
-    assert len(pos_doc_ids) == len(neg_doc_ids), '{} != {}'.format(len(pos_doc_ids), len(neg_doc_ids))
+    assert len(pos_doc_ids) == len(
+        neg_doc_ids
+    ), f'{len(pos_doc_ids)} != {len(neg_doc_ids)}'
     assert all(len(doc_ids) == negative_size for doc_ids in neg_doc_ids)
 
     input_doc_ids: List[int] = []

@@ -24,18 +24,20 @@ class LLMEvaluator:
         self.llm_model_id: str = parse_model_id(self.args.llm_model_name_or_path)
 
     def eval_single_task(self, eval_dataset: Dataset, task_name: str):
-        out_path: str = '{}/{}/{}_{}_metrics.json'.format(self.args.output_dir, self.llm_model_id, task_name, self.model_id)
+        out_path: str = f'{self.args.output_dir}/{self.llm_model_id}/{task_name}_{self.model_id}_metrics.json'
         if os.path.exists(out_path):
-            logger.info('Task {} has already been evaluated'.format(task_name))
+            logger.info(f'Task {task_name} has already been evaluated')
             return
 
         task_ds: Dataset = eval_dataset.filter(lambda x: x['task_name'] == task_name)
-        logger.info('Task: {}, # of examples: {}'.format(task_name, len(task_ds)))
+        logger.info(f'Task: {task_name}, # of examples: {len(task_ds)}')
         if len(task_ds) == 0:
-            logger.error('No examples for task: {}'.format(task_name))
+            logger.error(f'No examples for task: {task_name}')
             return
         sharded_task_ds = task_ds.shard(num_shards=self.args.world_size, index=self.args.process_index, contiguous=True)
-        logger.info('Worker {} needs to process {} examples'.format(self.args.process_index, len(task_ds)))
+        logger.info(
+            f'Worker {self.args.process_index} needs to process {len(task_ds)} examples'
+        )
 
         queries: List[str] = sharded_task_ds['query']
         input_prompts: List[str] = sharded_task_ds['input_prompt']
@@ -46,8 +48,8 @@ class LLMEvaluator:
 
         # prompt may be empty in the zero-shot setting
         input_texts: List[str] = [
-            '{}\n\n{}\n'.format(prompt, query) if prompt else '{}\n'.format(query) for prompt, query in
-            zip(input_prompts, queries)
+            f'{prompt}\n\n{query}\n' if prompt else f'{query}\n'
+            for prompt, query in zip(input_prompts, queries)
         ]
         possible_answers: Optional[List[str]] = get_possible_answers_by_task_name(task_name)
 
@@ -56,9 +58,11 @@ class LLMEvaluator:
             prefix_trie: Optional[DictTrie] = None
             if possible_answers and self.args.llm_constrained_decoding:
                 tokenizer = AutoTokenizer.from_pretrained(self.args.llm_model_name_or_path)
-                possible_answers = ['{}\n'.format(ans) for ans in possible_answers]
+                possible_answers = [f'{ans}\n' for ans in possible_answers]
                 prefix_trie: DictTrie = build_trie(tokenizer=tokenizer, output_texts=possible_answers)
-                logger.info('Task: {}, constrained generation targets: {}'.format(task_name, possible_answers))
+                logger.info(
+                    f'Task: {task_name}, constrained generation targets: {possible_answers}'
+                )
 
             decoded_texts: List[str] = self.llm.batch_decode(input_texts, prefix_trie=prefix_trie)
         else:
@@ -66,7 +70,12 @@ class LLMEvaluator:
             assert len(options_list[0]) == len(possible_answers)
             choices: List[str] = sum(options_list, [])
             scoring_inputs = sum(
-                [[input_text.strip() for _ in range(len(possible_answers))] for input_text in input_texts], [])
+                (
+                    [input_text.strip() for _ in range(len(possible_answers))]
+                    for input_text in input_texts
+                ),
+                [],
+            )
             scores: List[float] = self.llm.batch_score(scoring_inputs, choices, delimiter='\n')
             answer_indices = np.argmax(np.array(scores).reshape(-1, len(possible_answers)), axis=1)
             decoded_texts: List[str] = [possible_answers[idx] for idx in answer_indices]
@@ -111,13 +120,13 @@ class LLMEvaluator:
             'n_shot': self.args.llm_k_shot,
             'task_name': task_name,
         })
-        logger.info('Task {}, metric {}: {}'.format(task_name, metric_name, json.dumps(metrics)))
+        logger.info(f'Task {task_name}, metric {metric_name}: {json.dumps(metrics)}')
 
         save_json_to_file(metrics, out_path)
         model_id: str = parse_model_id(self.args.model_name_or_path)
         llm_model_id: str = parse_model_id(self.args.llm_model_name_or_path)
         save_llm_decoding_results(
-            out_path='{}/{}/{}_{}_decoding_results.jsonl'.format(self.args.output_dir, llm_model_id, task_name, model_id),
+            out_path=f'{self.args.output_dir}/{llm_model_id}/{task_name}_{model_id}_decoding_results.jsonl',
             input_texts=input_texts,
             decoded_texts=decoded_texts,
             parsed_decoded_texts=parsed_decoded_texts,
@@ -132,4 +141,4 @@ class LLMEvaluator:
     def _get_tmp_path(self, worker_idx: int, task_name: str) -> str:
         tmp_dir = self.args.output_dir if self.args.world_size <= 1 else 'tmp/'
         llm_model_id: str = parse_model_id(self.args.llm_model_name_or_path)
-        return '{}/{}/{}_{}.json'.format(tmp_dir, llm_model_id, task_name, worker_idx)
+        return f'{tmp_dir}/{llm_model_id}/{task_name}_{worker_idx}.json'

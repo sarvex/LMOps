@@ -43,8 +43,7 @@ class BaseType(object):
         random sample a template for each entry
         '''
         random.seed(random_seed) # fix random seed for reproduction
-        template = random.choice(self.get_all_templates(entry, random_seed))
-        return template
+        return random.choice(self.get_all_templates(entry, random_seed))
 
     def fill_in_the_template(self, template, kw_dic):
         question = template[0].format(**kw_dic)
@@ -54,20 +53,20 @@ class BaseType(object):
     def truncate_sentence(self, text, max_len):
         tokenized_example = self.ori_spm.encode(text)
         example_length = len(tokenized_example)
-        
-        if example_length > max_len:
-            input_ids = tokenized_example[:max_len]
-            truncated_text = self.ori_spm.decode(input_ids)
-            return truncated_text
-        else:
+
+        if example_length <= max_len:
             return text
+        input_ids = tokenized_example[:max_len]
+        return self.ori_spm.decode(input_ids)
     
     def init_spm(self, ori_spm_path, domain_spm_path):
         self.ori_spm = spm.SentencePieceProcessor(model_file=ori_spm_path)
-        ori_tokens = set([self.ori_spm.id_to_piece(i) for i in range(len(self.ori_spm))])
+        ori_tokens = {self.ori_spm.id_to_piece(i) for i in range(len(self.ori_spm))}
 
         self.domain_spm = spm.SentencePieceProcessor(model_file=domain_spm_path)
-        domain_tokens = set([self.domain_spm.id_to_piece(i) for i in range(len(self.domain_spm))])
+        domain_tokens = {
+            self.domain_spm.id_to_piece(i) for i in range(len(self.domain_spm))
+        }
         specific_tokens = domain_tokens-(ori_tokens & domain_tokens)
         specific_tokens = [token for token in list(specific_tokens) if (token.startswith('▁') and len(token)>10)]
         self.specific_token_set = set(specific_tokens)
@@ -104,13 +103,12 @@ class nli(BaseType):
         self.compile_regex() 
 
     def collect_mined(self, tup, class_name):
-        dic = {
+        return {
             'label': class_name,
             'verbalizer': tup[3],
             'premise': tup[1],
             'hypothesis': tup[-2],
         }
-        return dic
 
     def get_all_templates(self, entry, random_seed):
         np.random.seed(random_seed)
@@ -199,12 +197,12 @@ class nli(BaseType):
             ]
 
     def format_single_demo(self, entry, random_seed):
-        kw_dic = {}
-        kw_dic['premise'] = entry["premise"]
         hypothesis = entry["hypothesis"]
-        kw_dic['hypothesis'] = hypothesis[0].upper()+hypothesis[1:]
-        kw_dic['options_'] = '- Yes\n- No\n- Maybe'
-
+        kw_dic = {
+            'premise': entry["premise"],
+            'hypothesis': hypothesis[0].upper() + hypothesis[1:],
+            'options_': '- Yes\n- No\n- Maybe',
+        }
         kw_dic['verbalizer'] =entry['verbalizer']
         if entry['label'] == 'Entail':
             kw_dic['answer'] = 'Yes'
@@ -233,13 +231,12 @@ class common_reason(BaseType):
         self.compile_regex()
     
     def collect_mined(self, tup, class_name):
-        dic = {
+        return {
             'relation': class_name,
             'verbalizer': tup[3],
             'sentence1': tup[1],
             'sentence2': tup[-2],
         }
-        return dic
     
     def get_all_templates(self, entry, random_seed):
         if entry['relation'] == 'Cause-effect':
@@ -310,8 +307,7 @@ class common_reason(BaseType):
             ("{effect} {verbalizer}:", "{cause}"),
         ]
     def format_single_demo(self, entry, random_seed):
-        kw_dic = {}
-        kw_dic['verbalizer'] = entry['verbalizer']
+        kw_dic = {'verbalizer': entry['verbalizer']}
         if entry['relation'] == 'Cause-effect':
             kw_dic['cause'] =  entry['sentence1']
             kw_dic['effect'] = entry['sentence2'][0].upper() + entry['sentence2'][1:]
@@ -321,7 +317,7 @@ class common_reason(BaseType):
         elif entry['relation'] == 'Explanantion':
             kw_dic['sentence1'] = entry['sentence1']
             kw_dic['sentence2'] = entry['sentence2'][0].upper() + entry['sentence2'][1:]
-        
+
         template = self.get_template(entry, random_seed)
         return self.fill_in_the_template(template, kw_dic)
 
@@ -337,13 +333,12 @@ class paraphrase(BaseType):
         self.compile_regex()
     
     def collect_mined(self, tup, class_name):
-        dic = {
+        return {
             'label': class_name,
             'verbalizer': tup[3],
             'sentence1': tup[1],
             'sentence2': tup[-2],
         }
-        return dic
 
     def get_all_templates(self, entry, random_seed):
         if entry['label'] == 'Different':
@@ -377,11 +372,11 @@ class paraphrase(BaseType):
             ]
     
     def format_single_demo(self, entry, random_seed):
-        kw_dic = {}
-        kw_dic['verbalizer'] = entry['verbalizer']
-        kw_dic['sentence1'] = entry['sentence1']
-        kw_dic['sentence2'] = entry['sentence2'][0].upper() + entry['sentence2'][1:]    
-        
+        kw_dic = {
+            'verbalizer': entry['verbalizer'],
+            'sentence1': entry['sentence1'],
+            'sentence2': entry['sentence2'][0].upper() + entry['sentence2'][1:],
+        }
         template = self.get_template(entry, random_seed)
         return self.fill_in_the_template(template, kw_dic)
 
@@ -528,7 +523,7 @@ class word2text(BaseType):
             kw_dic['tokens'] = entry['token_set']
             kw_dic['tripleset'] = ', '.join(kw_dic['tokens'][:self.min_kw_num])
             kw_dic['target'] = entry['sent'].strip()
-        elif entry['relation'] == 'definition' or entry['relation'] == 'topic':
+        elif entry['relation'] in ['definition', 'topic']:
             kw_dic = entry
 
         template = self.get_template(entry, random_seed)
@@ -575,10 +570,9 @@ class summarize(BaseType):
     def format_single_demo(self, entry, random_seed):
         sents = entry.pop('sents')
         template = self.get_template(entry, random_seed)
-        
+
         entry['context_wo_title'] = ''.join(sents).strip()
-        final_demo = template.format(**entry)
-        return final_demo
+        return template.format(**entry)
 
 @type_map.add("text_completion")
 class text_completion(BaseType):
@@ -615,8 +609,7 @@ class text_completion(BaseType):
         entry['context_1st_half'] += ''.join(sents[:cut_index]).strip()
         entry['context_2nd_half'] = ''.join(sents[cut_index:]).strip()
         template = self.get_template(entry, random_seed)
-        final_demo = template.format(**entry)
-        return final_demo
+        return template.format(**entry)
 
 
 @type_map.add("summarize_completion")
@@ -646,8 +639,7 @@ class summarize_completion(BaseType):
 
         entry['context_1st_half'] = ''.join(sents[:cut_index]).strip()
         entry['context_2nd_half'] = ''.join(sents[cut_index:]).strip()
-        final_demo = template.format(**entry)
-        return final_demo
+        return template.format(**entry)
 
 @type_map.add("no_summarize_completion")
 class no_summarize_completion(BaseType):
@@ -675,12 +667,11 @@ class no_summarize_completion(BaseType):
     def format_single_demo(self, entry, random_seed):
         sents = entry.pop('sents')
         entry['context'] = entry['title']+'\n' if entry['title'] is not None else ''
-       
+
         template = self.get_template(entry, random_seed)
 
         entry['context'] += ''.join(sents).strip()
-        final_demo = template.format(**entry)
-        return final_demo
+        return template.format(**entry)
 
     
 @type_map.add("overall")
@@ -713,7 +704,7 @@ class overall(BaseType):
         qa_demo_list=[]
         seed = overall_entry['text_id']
         count_dict={}
-        for type in list(set(insert_types) & set(['nli', 'common_reason', 'paraphrase', 'word2text'])):
+        for type in list(set(insert_types) & {'nli', 'common_reason', 'paraphrase', 'word2text'}):
             type_cls = type_map.cls_dic[type]()
             type_examples = []
             count_dict[type]={}
@@ -727,7 +718,7 @@ class overall(BaseType):
             demo = self.demo_deliminator.join([type_cls.format_single_demo(example, seed) for example in type_examples]) 
             qa_demo_list.append(demo)
 
-        if len(qa_demo_list) > 0:
+        if qa_demo_list:
             random.Random(seed).shuffle(qa_demo_list)
             intro_template = random.Random(seed).choice(self.intro_deliminators)
             intro = intro_template.replace('{domain}', overall_entry['summarize']['domain'])
@@ -745,7 +736,7 @@ class overall(BaseType):
             entry['spm'] = self.ori_spm
             read_compre_demo = overall_cls.format_single_demo(entry, seed)
             return remove_double_space(read_compre_demo), count_dict
-        
+
         def completion_only(count_dict):
             count_dict['summarize'] = 0
             count_dict['text_completion'] = 1
@@ -756,7 +747,7 @@ class overall(BaseType):
             entry['spm'] = self.ori_spm
             read_compre_demo = overall_cls.format_single_demo(entry, seed)
             return remove_double_space(read_compre_demo), count_dict
-        
+
         def summarize_and_completion(count_dict):
             count_dict['summarize'] = 1
             count_dict['text_completion'] = 1
@@ -767,7 +758,7 @@ class overall(BaseType):
             entry['spm'] = self.ori_spm
             read_compre_demo = overall_cls.format_single_demo(entry, seed)
             return remove_double_space(read_compre_demo), count_dict
-        
+
         def no_summarize_or_completion(count_dict):
             count_dict['summarize'] = 0
             count_dict['text_completion'] = 0
@@ -778,7 +769,7 @@ class overall(BaseType):
             entry['spm'] = self.ori_spm
             read_compre_demo = overall_cls.format_single_demo(entry, seed)
             return remove_double_space(read_compre_demo), count_dict
-        
+
         if ('summarize' in insert_types and overall_entry['summarize']['title'] is not None) and ('text_completion' in insert_types and len(overall_entry['text_completion']['sents']) >=2):
             np.random.seed(seed)
             read_func = np.random.choice([summaize_only, completion_only, summarize_and_completion, no_summarize_or_completion], p=[0.4, 0.1, 0.4, 0.1])
@@ -790,5 +781,5 @@ class overall(BaseType):
             read_func = np.random.choice([completion_only, no_summarize_or_completion], p=[0.5, 0.5])
         else:
             read_func = no_summarize_or_completion
-        
+
         return read_func(count_dict)

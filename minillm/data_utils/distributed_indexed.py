@@ -45,11 +45,11 @@ def code(dtype):
 
 
 def index_file_path(prefix_path):
-    return prefix_path + '.idx'
+    return f'{prefix_path}.idx'
 
 
 def data_file_path(prefix_path):
-    return prefix_path + '.bin'
+    return f'{prefix_path}.bin'
 
 
 class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
@@ -185,8 +185,7 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         self._do_init(self._path, self._name, self._cache, self._state)
     
     def __relative_idx(self, idx):
-        res = idx - self.history[self._state][0]
-        return res
+        return idx - self.history[self._state][0]
 
     def __slice_item(self, start, stop):
         ptr = self._index._pointers[self.__relative_idx(start)]

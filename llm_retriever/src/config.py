@@ -112,7 +112,7 @@ class Arguments(TrainingArguments):
                 self.local_rank = -1
 
         if self.do_kd_gen_score:
-            assert os.path.exists('{}/{}.jsonl.gz'.format(self.data_dir, self.kd_gen_score_split))
+            assert os.path.exists(f'{self.data_dir}/{self.kd_gen_score_split}.jsonl.gz')
 
         if torch.cuda.device_count() <= 1:
             self.logging_steps = min(10, self.logging_steps)

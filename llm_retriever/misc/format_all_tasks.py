@@ -29,42 +29,42 @@ def format_and_save_corpus():
     corpus_list: List[Dataset] = []
     for task_name, task_cls in task_map.cls_dic.items():
         task: BaseTask = task_cls(template_idx=args.template_idx)
-        logger.info('Task: {}'.format(task_name))
+        logger.info(f'Task: {task_name}')
         task_corpus: Dataset = task.get_corpus()
         if task_corpus is None:
             continue
 
-        logger.info('Task: {}, corpus size: {}'.format(task_name, len(task_corpus)))
+        logger.info(f'Task: {task_name}, corpus size: {len(task_corpus)}')
         corpus_list.append(task_corpus)
 
     corpus: Dataset = concatenate_datasets(corpus_list)
     corpus = corpus.add_column('id', [str(i) for i in range(len(corpus))])
 
-    out_path: str = '{}/passages.jsonl.gz'.format(args.output_dir)
+    out_path: str = f'{args.output_dir}/passages.jsonl.gz'
     save_dataset(corpus, out_path=out_path)
-    logger.info('Save {} lines to {}'.format(len(corpus), out_path))
+    logger.info(f'Save {len(corpus)} lines to {out_path}')
 
 
 def prepare_split(split: str = 'test'):
     dataset_list: List[Dataset] = []
     for task_name, task_cls in task_map.cls_dic.items():
         task: BaseTask = task_cls(template_idx=args.template_idx)
-        logger.info('Task: {}'.format(task_name))
+        logger.info(f'Task: {task_name}')
         task_ds: Dataset = task.get_task_data(split=split)
         if task_ds is None:
             continue
 
-        logger.info('Task: {}, size: {}'.format(task_name, len(task_ds)))
+        logger.info(f'Task: {task_name}, size: {len(task_ds)}')
         if split == 'train' and len(task_ds) > args.max_train_examples:
             task_ds = task_ds.shuffle().select(range(args.max_train_examples))
-            logger.info('Random sample to {} examples'.format(len(task_ds)))
+            logger.info(f'Random sample to {len(task_ds)} examples')
         dataset_list.append(task_ds)
 
     dataset: Dataset = concatenate_datasets(dataset_list)
 
-    out_path: str = os.path.join(args.output_dir, '{}.jsonl.gz'.format(split))
+    out_path: str = os.path.join(args.output_dir, f'{split}.jsonl.gz')
     save_dataset(dataset, out_path)
-    logger.info('Save {} examples to {}'.format(len(dataset), out_path))
+    logger.info(f'Save {len(dataset)} examples to {out_path}')
 
 
 def main():

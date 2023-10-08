@@ -48,8 +48,9 @@ def _normalize_answer(text, punc_chars, punc_repl):
 
 def normalize_trivia_qa(answer):
   """Normalization used in official TriviaQA evaluation script."""
-  return _normalize_answer(
-      answer, punc_chars=string.punctuation + "‘’´`_", punc_repl=" ").strip()
+  return _normalize_answer(answer,
+                           punc_chars=f"{string.punctuation}‘’´`_",
+                           punc_repl=" ").strip()
 
 
 def normalize_squad(answer):
@@ -79,8 +80,7 @@ def _f1_score(target, prediction):
     return 0
   precision = 1.0 * num_same / len(prediction_tokens)
   recall = 1.0 * num_same / len(target_tokens)
-  f1 = (2 * precision * recall) / (precision + recall)
-  return f1
+  return (2 * precision * recall) / (precision + recall)
 
 def qa_metrics(targets, predictions):
   """Computes exact match and f1 QA scores, expecting pre-normalized text."""

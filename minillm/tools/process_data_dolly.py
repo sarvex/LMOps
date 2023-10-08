@@ -35,26 +35,26 @@ class Encoder(object):
                 "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:\n"
             )
             prompt = template.format(instruction=line["instruction"], input=line["input"])
-            
+
         response = line["output"]
         prompt_tokens = Encoder.tokenizer.encode(prompt, add_special_tokens=False)
         full_tokens = Encoder.tokenizer.encode(prompt + response, add_special_tokens=False) + [Encoder.tokenizer.eos_token_id]
-        response_tokens = full_tokens[len(prompt_tokens):]
-        
         if len(prompt_tokens) > self.args.max_prompt_length:
             return None, None, None, None, len(line)
-        
+
+        response_tokens = full_tokens[len(prompt_tokens):]
+
         return line, prompt, prompt_tokens, response_tokens, len(line)
 
 
 def main():
     print("OK")
     args = get_args()
-        
+
     args.processed_data_dir = os.path.join(args.processed_data_dir, args.model_type)
 
     os.makedirs(args.processed_data_dir, exist_ok=True)
-    
+
     with open(os.path.join(args.data_dir, "raw.jsonl")) as f:
         raw_data = f.readlines()
 
@@ -67,7 +67,7 @@ def main():
         all_data = {
             "train": raw_data
         }
-    
+
     for split in all_data:
         
         # encoder use the tokenizer to encode data
@@ -78,60 +78,57 @@ def main():
         encoded_docs = pool.imap_unordered(encoder.encode, all_data[split], chunksize=50)
         proc_start = time.time()
         total_bytes_processed = 0
-        
-        bin_file = os.path.join(args.processed_data_dir, f"{split}_{0}.bin")
-        idx_file = os.path.join(args.processed_data_dir, f"{split}_{0}.idx")
+
+        bin_file = os.path.join(args.processed_data_dir, f"{split}_0.bin")
+        idx_file = os.path.join(args.processed_data_dir, f"{split}_0.idx")
 
         binary_builder = make_builder(bin_file, impl="mmap", dtype=np.uint16)
 
         # put tokenized data into binary_builder
         inst_num = 0
         print("#"*10, split, "#"*10)
-        
+
         prompt_lens = []
         response_lens = []
-        
-        json_file = open(os.path.join(args.processed_data_dir, f"{split}.jsonl"), "w")
-        
-        for lid, (line, prompt_str, prompt, response, bytes_processed) in enumerate(encoded_docs):
-            total_bytes_processed += bytes_processed
-            if prompt is None:
-                continue
-            
-            if args.only_prompt:
-                if len(prompt) < args.max_length:
-                    binary_builder.add_item(torch.IntTensor(prompt))
-                else:
+
+        with open(os.path.join(args.processed_data_dir, f"{split}.jsonl"), "w") as json_file:
+            for lid, (line, prompt_str, prompt, response, bytes_processed) in enumerate(encoded_docs):
+                total_bytes_processed += bytes_processed
+                if prompt is None:
                     continue
-            else:
-                binary_builder.add_item(torch.IntTensor(prompt + [-1] + response))
 
-            json_file.write(json.dumps({
-                "instruction": line["instruction"],
-                "prompt": prompt_str,
-                "input": line["input"],
-                "output": line["output"],
-            }) + "\n")
+                if args.only_prompt:
+                    if len(prompt) < args.max_length:
+                        binary_builder.add_item(torch.IntTensor(prompt))
+                    else:
+                        continue
+                else:
+                    binary_builder.add_item(torch.IntTensor(prompt + [-1] + response))
 
-            prompt_lens.append(len(prompt))
-            response_lens.append(len(response))
+                json_file.write(json.dumps({
+                    "instruction": line["instruction"],
+                    "prompt": prompt_str,
+                    "input": line["input"],
+                    "output": line["output"],
+                }) + "\n")
 
-            inst_num += 1
-            if lid % 1000 == 0:
-                current = time.time()
-                elapsed = current - proc_start
-                mbs = total_bytes_processed / elapsed / 1024 / 1024
-                print(f"Processed {lid} documents. {inst_num} instances.",
-                    f"({lid/elapsed} docs/s, {mbs} MB/s).",
-                    file=sys.stderr)
+                prompt_lens.append(len(prompt))
+                response_lens.append(len(response))
 
-        # finish compressing tokenized data into `bin_file`, and generate meta information into `idx_file`
-        binary_builder.finalize(idx_file)
+                inst_num += 1
+                if lid % 1000 == 0:
+                    current = time.time()
+                    elapsed = current - proc_start
+                    mbs = total_bytes_processed / elapsed / 1024 / 1024
+                    print(f"Processed {lid} documents. {inst_num} instances.",
+                        f"({lid/elapsed} docs/s, {mbs} MB/s).",
+                        file=sys.stderr)
 
-        # close multiproceessing mapping
-        pool.close()
-        json_file.close()
-                
+            # finish compressing tokenized data into `bin_file`, and generate meta information into `idx_file`
+            binary_builder.finalize(idx_file)
+
+            # close multiproceessing mapping
+            pool.close()
         print("Data num", len(prompt_lens))
         print("Prompt lengths.", "Mean:", np.mean(prompt_lens), "Max:", np.max(prompt_lens), "Min:", np.min(prompt_lens))
         print("Response", "Mean:", np.mean(response_lens), "Max:", np.max(response_lens), "Min:", np.min(response_lens))

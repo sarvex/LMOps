@@ -67,24 +67,26 @@ class PPOTrainer():
         self.model = PPOModel(args.model_path, args.model_type, args.model_parallel, args.gradient_checkpointing)
         if args.model_parallel:
             if mpu.get_data_parallel_rank() == 0:
-                print(' > number of parameters on model parallel rank {}: {}M'.format(
-                    mpu.get_model_parallel_rank(),
-                    int(sum([p.nelement() for p in self.model.parameters()]) / 1e6)), flush=True)
-        else:
-            if dist.get_rank() == 0:
-                print(' > number of parameters: {}M'.format(
-                    int(sum([p.nelement() for p in self.model.parameters()]) / 1e6)), flush=True)
+                print(
+                    f' > number of parameters on model parallel rank {mpu.get_model_parallel_rank()}: {int(sum(p.nelement() for p in self.model.parameters()) / 1000000.0)}M',
+                    flush=True,
+                )
+        elif dist.get_rank() == 0:
+            print(
+                f' > number of parameters: {int(sum(p.nelement() for p in self.model.parameters()) / 1000000.0)}M',
+                flush=True,
+            )
 
         self.sampler = None
         self.teacher_model = None
         self.opt = self.setup_optimizer()
         self.scheduler = self.setup_scheduler()
         self.model, self.opt, self.scheduler = self.setup_ds(self.model, self.opt, self.scheduler)
-        
+
         self.tokenizer = tokenizer
         self.store = PPORolloutStorage(self.tokenizer.pad_token_id, self.args.seed_ppo + self.dp_rank)
         self.store.clear_history()
-        
+
         self.losses = Loss(args, self)
         self.generate_kwargs = dict(
             do_sample=args.do_sample,
@@ -106,29 +108,33 @@ class PPOTrainer():
         """
         Returns an optimizer derived from an instance's TRLConfig
         """
-        optimizer = AdamW(
+        return AdamW(
             self.model.parameters(),
             lr=self.args.lr,
             betas=[0.9, 0.95],
             eps=1.0e-8,
-            weight_decay=1.0e-6
+            weight_decay=1.0e-6,
         )
-
-        return optimizer
 
     def setup_scheduler(self):
         """
         Returns a learning rate scheduler derived from an instance's TRLConfig
         """
         if self.args.scheduler_name == "constant_trm":
-            scheduler = get_constant_schedule_with_warmup(self.opt, num_warmup_steps=self.args.warmup_iters)
+            return get_constant_schedule_with_warmup(
+                self.opt, num_warmup_steps=self.args.warmup_iters
+            )
         elif self.args.scheduler_name == "cosine_trm":
-            scheduler = get_cosine_schedule_with_warmup(self.opt, num_warmup_steps=self.args.warmup_iters, num_training_steps=self.args.total_iters)
+            return get_cosine_schedule_with_warmup(
+                self.opt,
+                num_warmup_steps=self.args.warmup_iters,
+                num_training_steps=self.args.total_iters,
+            )
         else:
             scheduler_class = get_scheduler_class(self.args.scheduler_name)
-            scheduler = scheduler_class(self.opt, eta_min=self.args.lr_min, T_max=self.args.total_iters)
-        
-        return scheduler
+            return scheduler_class(
+                self.opt, eta_min=self.args.lr_min, T_max=self.args.total_iters
+            )
 
     def setup_ds(self, model, optimizer=None, scheduler=None):
         model, optimizer, _, scheduler = deepspeed.initialize(
@@ -173,18 +179,14 @@ class PPOTrainer():
         return batch
 
     def get_mask(self, tokens):
-        attention_mask = (
-            tokens.not_equal(self.tokenizer.pad_token_id).long()
-        )
-        return attention_mask
+        return tokens.not_equal(self.tokenizer.pad_token_id).long()
 
     def forward_model(self, batch):
-        outputs = self.model(
+        return self.model(
             **batch,
             return_dict=True,
             use_cache=False,
         )
-        return outputs
 
     def compute_logits_and_log_probs(self, query_ids, response_ids, inf_mask=None, base="base", return_logprobs=True):
         batch = self.get_model_inputs(
@@ -421,18 +423,18 @@ class PPOTrainer():
             print_rank(eval_log_str)
             save_rank(eval_log_str, os.path.join(self.args.save, "log.txt"))
 
-    def evaluate_ppo(self):  # noqa: C901
+    def evaluate_ppo(self):    # noqa: C901
         # self.model.eval()
         """Samples model on `eval_prompts`, logs stats with `reward_fn` or `metric_fn` if provided"""
         stats = {}
         all_full_ids = []
         all_rev_kl = []
         all_lens = []
-        
+
         table = []
 
         with torch.no_grad():
-            for batch in tqdm(self.eval_dataloader, "Generation Evaluation", disable=(not get_rank() == 0)):
+            for batch in tqdm(self.eval_dataloader, "Generation Evaluation", disable=get_rank() != 0):
                 batch, no_model_batch = batch
                 batch, _ = self.eval_pipeline.move_to_device(batch, no_model_batch, self.device)
                 gen_out = self.generate(
@@ -445,19 +447,19 @@ class PPOTrainer():
                 inf_mask = torch.isinf(gen_logits)
 
                 all_full_ids.append(full_ids)
-                
+
                 input_ids = batch["input_ids"]
                 gen_ids = full_ids[:, input_ids.size(1):]
                 mask = self.get_mask(full_ids)
                 mask = mask[:, input_ids.size(1)-1:input_ids.size(1)+gen_ids.size(1)-1]
                 lens = torch.sum(mask, dim=-1)
-                
+
                 teacher_rewards = self.reward_fn(input_ids, gen_ids)["rewards"] # \log p(y_t | y_{<t}, x)
                 _, logprobs = self.compute_logits_and_log_probs(input_ids, gen_ids, inf_mask=inf_mask, base="base") # \log q_{\theta}(y_t | y_{<t}, x)
-                
+
                 kl = get_rev_kl(teacher_rewards, logprobs, mask)
                 kl = kl.sum(-1)
-                
+
                 if self.args.length_norm:
                     kl = kl / lens
 
@@ -483,10 +485,8 @@ class PPOTrainer():
                 response_texts = self.tokenizer.batch_decode(full_ids[:, self.eval_pipeline.max_prompt_length:], skip_special_tokens=True)
                 gen_texts = [p + g for p, g in zip(prompt_texts, response_texts)]
 
-                columns = ["prompts"]
                 columns_data = [prompt_texts]
-                # in online setting, compute the reward for validation
-                columns.append("samples")
+                columns = ["prompts", "samples"]
                 if isinstance(gen_texts[0], str):
                     columns_data.append(gen_texts)
                 else:
@@ -521,26 +521,28 @@ class PPOTrainer():
         all_pt_losses = []
         all_lm_losses = []
         all_kd_losses = []
-        for batch in tqdm(self.eval_lm_dataloader, desc="LM Evaluation", disable=(not get_rank() == 0)):
+        for batch in tqdm(self.eval_lm_dataloader, desc="LM Evaluation", disable=get_rank() != 0):
             self.eval_lm_pipeline.move_to_device(*batch, self.device)
             with torch.no_grad():
                 _, stats = self.losses.pt_loss(batch)
                 all_pt_losses.append(stats["pt_loss"])
                 all_lm_losses.append(stats["lm_loss"])
                 all_kd_losses.append(stats["ds_loss"])
-        
+
         all_pt_losses = torch.tensor(all_pt_losses, device=self.device)
         eval_pt_loss = all_gather(all_pt_losses, dim=0, world_size=self.dp_world_size, group=self.dp_group).mean().item()
-        
+
         all_lm_losses = torch.tensor(all_lm_losses, device=self.device)
         eval_lm_loss = all_gather(all_lm_losses, dim=0, world_size=self.dp_world_size, group=self.dp_group).mean().item()
-        
+
         all_kd_losses = torch.tensor(all_kd_losses, device=self.device)
         eval_kd_loss = all_gather(all_kd_losses, dim=0, world_size=self.dp_world_size, group=self.dp_group).mean().item()
-        
-        results = {"pt_loss": eval_pt_loss, "lm_loss": eval_lm_loss, "kd_loss": eval_kd_loss}
-        
-        return results
+
+        return {
+            "pt_loss": eval_pt_loss,
+            "lm_loss": eval_lm_loss,
+            "kd_loss": eval_kd_loss,
+        }
     
     def save(self, directory: Optional[str] = None):
         """Creates a checkpoint of the optimizer, scheduler and model"""
@@ -554,12 +556,11 @@ class PPOTrainer():
                 self.tokenizer.save_pretrained(ckpt_dir)
             if mpu.get_data_parallel_rank() == 0:
                 save_parallel(self.model.module.base_model, ckpt_dir)
-        else:
-            if get_rank() == 0:
-                self.model.module.base_model.save_pretrained(ckpt_dir)
-                # torch.save(self.model.module.value_model.state_dict(), os.path.join(ckpt_dir, "value_model.ckpt"))
-                print(f"Model save to {ckpt_dir}")
-                self.tokenizer.save_pretrained(ckpt_dir)
+        elif get_rank() == 0:
+            self.model.module.base_model.save_pretrained(ckpt_dir)
+            # torch.save(self.model.module.value_model.state_dict(), os.path.join(ckpt_dir, "value_model.ckpt"))
+            print(f"Model save to {ckpt_dir}")
+            self.tokenizer.save_pretrained(ckpt_dir)
 
     def save_evals(self, preds, results, response_texts, directory: Optional[str] = None):
         """Creates a checkpoint of the optimizer, scheduler and model"""
